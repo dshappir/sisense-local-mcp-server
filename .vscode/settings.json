@@ -1,0 +1,41 @@
+{
+    "typescript.preferences.includePackageJsonAutoImports": "auto",
+    "typescript.suggest.autoImports": true,
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/coverage": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/coverage": true
+    },
+    "debug.console.acceptSuggestionOnEnter": "on",
+    "debug.console.fontSize": 14,
+    "debug.console.lineHeight": 22,
+    "debug.inlineValues": "auto",
+    "debug.showBreakpointsInOverviewRuler": true,
+    "debug.showInlineBreakpointCandidates": true,
+    "jest.jestCommandLine": "npm test --",
+    "jest.autoRun": "off",
+    "jest.showCoverageOnLoad": false,
+    "jest.autoRevealOutput": "on-exec-error",
+    "jest.pathToJest": "npm test --",
+    "jest.rootPath": ".",
+    "jest.testExplorer": {
+        "enabled": true
+    },
+    "testing.automaticallyOpenPeekView": "never",
+    "testing.openTesting": "openExplorer",
+    "testing.gutterEnabled": true,
+    "testing.followRunningTest": true,
+    "testing.defaultGutterClickAction": "run",
+    "testing.automaticallyOpenTestResults": "openExplorer"
+}
