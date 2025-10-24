@@ -15,7 +15,7 @@ A Model Context Protocol (MCP) server that provides access to Sisense data and a
 
 ## Prerequisites
 
-- Node.js >= 20.0.0
+- Node.js >= 22.0.0
 - npm >= 10.0.0
 - Access to a Sisense instance
 
@@ -23,33 +23,33 @@ A Model Context Protocol (MCP) server that provides access to Sisense data and a
 
 1. **Clone the repository:**
 
-   ```bash
-   git clone <repository-url>
-   cd sisense-local-mcp-server
-   ```
+    ```bash
+    git clone <repository-url>
+    cd sisense-local-mcp-server
+    ```
 
 2. **Install dependencies:**
 
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
 3. **Set up environment variables:**
 
-   ```bash
-   cp env.example .env
-   ```
+    ```bash
+    cp env.example .env
+    ```
 
-   Edit `.env` with your Sisense configuration:
+    Edit `.env` with your Sisense configuration:
 
-   ```env
-   # Sisense Configuration
-   SISENSE_URL=https://your-sisense-instance.com
-   SISENSE_API_KEY=your-api-key
-   
-   # Server Settings
-   LOG_LEVEL=info
-   ```
+    ```env
+    # Sisense Configuration
+    SISENSE_URL=https://your-sisense-instance.com
+    SISENSE_API_KEY=your-api-key
+
+    # Server Settings
+    LOG_LEVEL=info
+    ```
 
 ## Usage
 
@@ -129,12 +129,12 @@ npm run debug:dev:brk
 1. **Open the project in Cursor/VS Code**
 2. **Go to the Debug panel** (Ctrl+Shift+D / Cmd+Shift+D)
 3. **Select a debug configuration:**
-   - `Debug Production (--inspect)` - Debug built application
-   - `Debug Production (--inspect-brk)` - Debug built application with break on start
-   - `Debug Development (--inspect)` - Debug TypeScript source directly
-   - `Debug Development (--inspect-brk)` - Debug TypeScript source with break on start
-   - `Attach to Process` - Attach to an already running debug process
-   - `Debug Tests` - Debug Jest tests
+    - `Debug Production (--inspect)` - Debug built application
+    - `Debug Production (--inspect-brk)` - Debug built application with break on start
+    - `Debug Development (--inspect)` - Debug TypeScript source directly
+    - `Debug Development (--inspect-brk)` - Debug TypeScript source with break on start
+    - `Attach to Process` - Attach to an already running debug process
+    - `Debug Tests` - Debug Jest tests
 
 4. **Set breakpoints** by clicking in the gutter next to line numbers
 5. **Start debugging** by pressing F5 or clicking the play button
@@ -189,16 +189,16 @@ The server exposes Sisense dashboards as MCP resources:
 
 ### Environment Variables
 
-| Variable                 | Description                  | Default                          | Required |
-| ------------------------ | ---------------------------- | -------------------------------- | -------- |
-| `MCP_SERVER_NAME`        | Server name                  | `sisense-local-mcp-server`       | No       |
-| `MCP_SERVER_VERSION`     | Server version               | `1.0.0`                          | No       |
-| `MCP_SERVER_DESCRIPTION` | Server description           | `Local (STD) Sisense MCP server` | No       |
-| `LOG_LEVEL`              | Log level                    | `info`                           | No       |
-| `SISENSE_URL`            | Sisense instance URL         | -                                | Yes      |
-| `SISENSE_API_KEY`        | API key for authentication   | -                                | Yes      |
-| `NODE_ENV`               | Environment                  | `development`                    | No       |
-| `DEBUG`                  | Debug mode                   | `false`                          | No       |
+| Variable                 | Description                | Default                          | Required |
+| ------------------------ | -------------------------- | -------------------------------- | -------- |
+| `MCP_SERVER_NAME`        | Server name                | `sisense-local-mcp-server`       | No       |
+| `MCP_SERVER_VERSION`     | Server version             | `1.0.0`                          | No       |
+| `MCP_SERVER_DESCRIPTION` | Server description         | `Local (STD) Sisense MCP server` | No       |
+| `LOG_LEVEL`              | Log level                  | `info`                           | No       |
+| `SISENSE_URL`            | Sisense instance URL       | -                                | Yes      |
+| `SISENSE_API_KEY`        | API key for authentication | -                                | Yes      |
+| `NODE_ENV`               | Environment                | `development`                    | No       |
+| `DEBUG`                  | Debug mode                 | `false`                          | No       |
 
 ## Project Structure
 
@@ -255,19 +255,19 @@ This project uses:
 ### Common Issues
 
 1. **Authentication Errors**
-   - Verify your Sisense credentials are correct
-   - Check that the Sisense URL is accessible
-   - Ensure you're using either token or username/password authentication
+    - Verify your Sisense credentials are correct
+    - Check that the Sisense URL is accessible
+    - Ensure you're using either token or username/password authentication
 
 2. **Connection Issues**
-   - Verify the Sisense URL is correct and accessible
-   - Check network connectivity
-   - Ensure proper firewall settings
+    - Verify the Sisense URL is correct and accessible
+    - Check network connectivity
+    - Ensure proper firewall settings
 
 3. **Build Issues**
-   - Ensure you're using Node.js >= 20.0.0
-   - Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-   - Check TypeScript configuration
+    - Ensure you're using Node.js >= 22.0.0
+    - Clear node_modules and reinstall: `rm -rf node_modules && npm install`
+    - Check TypeScript configuration
 
 ### Debug Mode
 

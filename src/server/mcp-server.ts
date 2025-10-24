@@ -7,10 +7,17 @@ import {
     ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { MCPServerInstance, ToolDefinition, ResourceDefinition } from '../types/index.js';
+import { ValidationError } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { safeStringify } from '../utils/json.js';
 import { SisenseService } from '../services/sisense.js';
 import { env } from '../config/environment.js';
+import {
+    validateDashboardId,
+    validateCubeId,
+    validateQuery,
+    validateResourceUri,
+} from '../utils/validation.js';
 
 export class SisenseMCPServer implements MCPServerInstance {
     public readonly server: Server;
@@ -205,19 +212,18 @@ export class SisenseMCPServer implements MCPServerInstance {
     private async readResource(
         uri: string
     ): Promise<{ contents: Array<{ uri: string; mimeType: string; text: string }> }> {
-        if (!uri.startsWith('sisense://')) {
-            throw new Error(`Unsupported resource URI: ${uri}`);
-        }
-
-        const parts = uri.split('/');
-        const resourceType = parts[2]; // 'sisense://dashboard/123' -> ['sisense:', '', 'dashboard', '123']
-        const resourceId = parts[3];
-
-        if (!resourceId) {
-            throw new Error(`Invalid resource URI: ${uri}`);
-        }
-
         try {
+            const validatedUri = validateResourceUri(uri);
+            const parts = validatedUri.split('/');
+            const resourceType = parts[2]; // 'sisense://dashboard/123' -> ['sisense:', '', 'dashboard', '123']
+            const resourceId = parts[3];
+
+            if (!resourceId) {
+                throw new ValidationError(`Invalid resource URI: missing resource ID`, {
+                    uri: validatedUri,
+                });
+            }
+
             let data: Record<string, unknown>;
 
             switch (resourceType) {
@@ -225,20 +231,27 @@ export class SisenseMCPServer implements MCPServerInstance {
                     data = await this.sisenseService.getDashboard(resourceId);
                     break;
                 default:
-                    throw new Error(`Unsupported resource type: ${resourceType}`);
+                    throw new ValidationError(`Unsupported resource type: ${resourceType}`, {
+                        uri: validatedUri,
+                        resourceType,
+                        supportedTypes: ['dashboard'],
+                    });
             }
 
             return {
                 contents: [
                     {
-                        uri,
+                        uri: validatedUri,
                         mimeType: 'application/json',
                         text: safeStringify(data, 2),
                     },
                 ],
             };
         } catch (error) {
-            logger.error('Failed to read resource', { uri, error });
+            logger.error('Failed to read resource', {
+                uri,
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
@@ -260,37 +273,34 @@ export class SisenseMCPServer implements MCPServerInstance {
                 case 'list_dashboards':
                     result = await this.sisenseService.getDashboards();
                     break;
-                case 'get_dashboard':
-                    if (!args['dashboardId'] || typeof args['dashboardId'] !== 'string') {
-                        throw new Error('dashboardId is required and must be a string');
-                    }
-                    result = await this.sisenseService.getDashboard(args['dashboardId']);
+                case 'get_dashboard': {
+                    const dashboardId = validateDashboardId(args['dashboardId'] as string);
+                    result = await this.sisenseService.getDashboard(dashboardId);
                     break;
-                case 'get_dashboard_widgets':
-                    if (!args['dashboardId'] || typeof args['dashboardId'] !== 'string') {
-                        throw new Error('dashboardId is required and must be a string');
-                    }
-                    result = await this.sisenseService.getDashboardWidgets(args['dashboardId']);
+                }
+                case 'get_dashboard_widgets': {
+                    const widgetDashboardId = validateDashboardId(args['dashboardId'] as string);
+                    result = await this.sisenseService.getDashboardWidgets(widgetDashboardId);
                     break;
-                case 'execute_query':
-                    if (!args['query'] || typeof args['query'] !== 'object') {
-                        throw new Error('query is required and must be an object');
-                    }
-                    result = await this.sisenseService.executeQuery(
-                        args['query'] as Record<string, unknown>
-                    );
+                }
+                case 'execute_query': {
+                    const query = validateQuery(args['query']);
+                    result = await this.sisenseService.executeQuery(query);
                     break;
+                }
                 case 'list_cubes':
                     result = await this.sisenseService.getCubes();
                     break;
-                case 'get_cube_metadata':
-                    if (!args['cubeId'] || typeof args['cubeId'] !== 'string') {
-                        throw new Error('cubeId is required and must be a string');
-                    }
-                    result = await this.sisenseService.getCubeMetadata(args['cubeId']);
+                case 'get_cube_metadata': {
+                    const cubeId = validateCubeId(args['cubeId'] as string);
+                    result = await this.sisenseService.getCubeMetadata(cubeId);
                     break;
+                }
                 default:
-                    throw new Error(`Unknown tool: ${name}`);
+                    throw new ValidationError(`Unknown tool: ${name}`, {
+                        toolName: name,
+                        availableTools: this.getAvailableTools().map(t => t.name),
+                    });
             }
 
             return {
@@ -302,7 +312,11 @@ export class SisenseMCPServer implements MCPServerInstance {
                 ],
             };
         } catch (error) {
-            logger.error('Tool execution failed', { name, args, error });
+            logger.error('Tool execution failed', {
+                name,
+                args,
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }

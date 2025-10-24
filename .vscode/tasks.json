@@ -2,14 +2,13 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "npm: build",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "run",
-                "build"
-            ],
-            "group": "build",
+            "label": "build",
+            "type": "npm",
+            "script": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "presentation": {
                 "echo": true,
                 "reveal": "silent",
@@ -24,13 +23,84 @@
             "detail": "Build the TypeScript project"
         },
         {
-            "label": "npm: clean",
+            "label": "mcp-inspector-dev",
             "type": "shell",
-            "command": "npm",
+            "command": "npx",
             "args": [
-                "run",
-                "clean"
+                "@modelcontextprotocol/inspector",
+                "tsx",
+                "--inspect=9229",
+                "src/index.ts"
             ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*Debugger listening on.*"
+                }
+            },
+            "detail": "Start MCP Inspector with development TypeScript source and debugging enabled"
+        },
+        {
+            "label": "mcp-inspector-prod",
+            "type": "shell",
+            "command": "npx",
+            "args": [
+                "@modelcontextprotocol/inspector",
+                "node",
+                "--inspect=9229",
+                "dist/index.js"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "isBackground": true,
+            "dependsOn": "build",
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*Debugger listening on.*"
+                }
+            },
+            "detail": "Start MCP Inspector with production build and debugging enabled"
+        },
+        {
+            "label": "clean",
+            "type": "npm",
+            "script": "clean",
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -43,12 +113,78 @@
             "detail": "Clean the dist directory"
         },
         {
-            "label": "npm: test",
-            "type": "shell",
-            "command": "npm",
-            "args": [
-                "test"
+            "label": "type-check",
+            "type": "npm",
+            "script": "type-check",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$tsc"
             ],
+            "detail": "Run TypeScript type checking"
+        },
+        {
+            "label": "lint",
+            "type": "npm",
+            "script": "lint",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$eslint-stylish"
+            ],
+            "detail": "Run ESLint"
+        },
+        {
+            "label": "lint:fix",
+            "type": "npm",
+            "script": "lint:fix",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$eslint-stylish"
+            ],
+            "detail": "Run ESLint with auto-fix"
+        },
+        {
+            "label": "format",
+            "type": "npm",
+            "script": "format",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "detail": "Format code with Prettier"
+        },
+        {
+            "label": "test",
+            "type": "npm",
+            "script": "test",
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -58,7 +194,90 @@
                 "showReuseMessage": true,
                 "clear": false
             },
-            "detail": "Run tests"
+            "problemMatcher": [
+                "$tsc"
+            ],
+            "detail": "Run all tests"
+        },
+        {
+            "label": "test:watch",
+            "type": "npm",
+            "script": "test:watch",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*Watch mode.*"
+                }
+            },
+            "detail": "Run tests in watch mode"
+        },
+        {
+            "label": "test:coverage",
+            "type": "npm",
+            "script": "test:coverage",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$tsc"
+            ],
+            "detail": "Run tests with coverage report"
+        },
+        {
+            "label": "dev",
+            "type": "npm",
+            "script": "dev",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*watching.*"
+                }
+            },
+            "detail": "Start development server with hot reload"
         }
     ]
 }

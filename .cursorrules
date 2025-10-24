@@ -1,0 +1,313 @@
+# Cursor Rules for Sisense MCP Server
+
+You are an expert TypeScript and Node.js developer working on a Model Context Protocol (MCP) server for Sisense. This project emphasizes clean code, separation of concerns, and comprehensive test coverage.
+
+## Project Overview
+
+- **Type**: MCP (Model Context Protocol) Server
+- **Language**: TypeScript with ES2022+ features
+- **Runtime**: Node.js 22+
+- **Architecture**: Modular with clear separation of concerns
+- **Testing**: Jest with comprehensive coverage requirements
+
+## Code Quality Standards
+
+### TypeScript Best Practices
+
+- Use strict TypeScript configuration with all strict flags enabled
+- Prefer explicit types over `any` - use `unknown` when type is truly unknown
+- Use proper type guards and type assertions only when necessary
+- Leverage TypeScript's advanced features: mapped types, conditional types, template literals
+- Use `const assertions` and `as const` for immutable data structures
+- Prefer interfaces over types for object shapes, types for unions/primitives
+- Use branded types for domain-specific identifiers (e.g., `type UserId = string & { __brand: 'UserId' }`)
+
+### Code Organization
+
+- Follow the existing project structure: `src/` for source, `tests/` for tests
+- Use barrel exports (`index.ts`) for clean module boundaries
+- Group related functionality into logical modules (services, utils, types, config)
+- Keep files focused and single-purpose (max ~300 lines per file)
+- Use meaningful file and directory names that reflect their purpose
+
+### Error Handling
+
+- Use custom error classes that extend `MCPServerError` for domain-specific errors
+- Always include context in error messages and logging
+- Use proper error codes and HTTP status codes
+- Handle both synchronous and asynchronous errors appropriately
+- Log errors with structured data, not just error messages
+
+### Async/Await Patterns
+
+- Prefer async/await over Promises chains
+- Use proper error handling in async functions
+- Consider using `Promise.allSettled()` for parallel operations that shouldn't fail together
+- Use `AbortController` for cancellable operations
+- Handle cleanup in finally blocks
+
+### Logging and Observability
+
+- Use structured logging with the existing logger utility
+- Include relevant context in log messages (user IDs, request IDs, etc.)
+- Use appropriate log levels: `debug` for development, `info` for important events, `warn` for recoverable issues, `error` for failures
+- Log both success and failure cases for important operations
+- Use consistent log message formats
+
+## Architecture Patterns
+
+### Service Layer Pattern
+
+- Keep business logic in service classes (e.g., `SisenseService`)
+- Services should be stateless and testable
+- Use dependency injection for better testability
+- Separate external API calls from internal business logic
+
+### Repository Pattern
+
+- Abstract data access behind repository interfaces
+- Use adapters for external services (Sisense API)
+- Mock repositories in tests, not the services themselves
+
+### Configuration Management
+
+- Use environment-based configuration with validation
+- Validate configuration at startup
+- Use Zod schemas for runtime type checking
+- Provide sensible defaults where appropriate
+
+### MCP Server Implementation
+
+- Follow MCP protocol specifications strictly
+- Implement proper request/response handling
+- Use schema validation for tool inputs
+- Provide comprehensive tool and resource definitions
+- Handle MCP-specific errors appropriately
+
+## Testing Requirements
+
+### Test Coverage
+
+- Maintain minimum coverage thresholds: 60% lines, 55% branches, 55% functions
+- Aim for 80%+ coverage on critical business logic
+- Test both happy path and error scenarios
+- Include integration tests for MCP server functionality
+
+### Test Structure
+
+- Use descriptive test names that explain the scenario
+- Follow AAA pattern: Arrange, Act, Assert
+- Use proper test data factories and builders
+- Mock external dependencies appropriately
+- Test error conditions and edge cases
+
+### Test Organization
+
+- Mirror the source structure in test files
+- Use `describe` blocks for logical grouping
+- Use `beforeEach`/`afterEach` for setup/cleanup
+- Keep tests independent and isolated
+
+### Mocking Strategy
+
+- Mock external services (Sisense API) at the service boundary
+- Use Jest mocks for unit tests
+- Create integration tests with real external services when possible
+- Use test doubles for complex dependencies
+
+## Code Style and Formatting
+
+### Naming Conventions
+
+- Use camelCase for variables, functions, and methods
+- Use PascalCase for classes, interfaces, and types
+- Use UPPER_SNAKE_CASE for constants
+- Use descriptive names that explain intent
+- Avoid abbreviations unless they're widely understood
+
+### Function Design
+
+- Prefer `function` keyword for named functions
+- Keep functions small and focused (max ~20 lines)
+- Use pure functions when possible
+- Prefer composition over inheritance
+- Use early returns to reduce nesting
+- Avoid deep nesting (max 3-4 levels)
+
+### Comments and Documentation
+
+- Write self-documenting code that doesn't need comments
+- Use JSDoc for public APIs and complex functions
+- Document the "why" not the "what"
+- Keep comments up-to-date with code changes
+- Use TODO comments sparingly and include context
+
+## Performance Considerations
+
+### Memory Management
+
+- Avoid memory leaks in long-running processes
+- Use proper cleanup for event listeners and timers
+- Consider using WeakMap/WeakSet for caching
+- Monitor memory usage in production
+
+### Async Operations
+
+- Use appropriate concurrency limits for external API calls
+- Implement proper retry logic with exponential backoff
+- Use connection pooling for external services
+- Consider using streams for large data processing
+
+### Caching Strategy
+
+- Implement appropriate caching for frequently accessed data
+- Use TTL-based cache invalidation
+- Consider using Redis for distributed caching
+- Cache at the appropriate layer (service vs. transport)
+
+## Security Best Practices
+
+### Input Validation
+
+- Validate all inputs using Zod schemas
+- Sanitize user inputs before processing
+- Use parameterized queries for database operations
+- Implement rate limiting for external APIs
+
+### Error Information
+
+- Don't expose sensitive information in error messages
+- Log detailed errors internally, return safe messages to clients
+- Use proper HTTP status codes
+- Implement proper authentication and authorization
+
+### Dependencies
+
+- Keep dependencies up-to-date
+- Use `npm audit` to check for vulnerabilities
+- Prefer well-maintained, popular packages
+- Minimize the attack surface by using minimal dependencies
+
+## Development Workflow
+
+### Git Practices
+
+- Use meaningful commit messages following conventional commits
+- Create feature branches for new functionality
+- Use pull requests for code review
+- Keep commits atomic and focused
+
+### Code Review
+
+- Review for logic correctness and edge cases
+- Check for proper error handling
+- Verify test coverage and quality
+- Ensure code follows project patterns and conventions
+
+### Refactoring
+
+- Refactor frequently to keep code clean
+- Use IDE refactoring tools when possible
+- Update tests when refactoring
+- Consider performance implications of refactoring
+
+## MCP-Specific Guidelines
+
+### Tool Implementation
+
+- Define clear, comprehensive tool schemas
+- Validate tool inputs thoroughly
+- Provide helpful error messages for invalid inputs
+- Return structured, consistent responses
+
+### Resource Management
+
+- Implement proper resource discovery
+- Handle resource access errors gracefully
+- Use appropriate MIME types for resources
+- Consider resource caching strategies
+
+### Protocol Compliance
+
+- Follow MCP specification exactly
+- Handle all required MCP request types
+- Implement proper error responses
+- Use correct MCP response formats
+
+## Common Patterns to Follow
+
+### Service Initialization
+
+```typescript
+// Good: Proper initialization with error handling
+async function initializeService(): Promise<Service> {
+    try {
+        const config = await loadConfiguration();
+        const service = new Service(config);
+        await service.connect();
+        return service;
+    } catch (error) {
+        logger.error('Failed to initialize service', { error });
+        throw new ServiceInitializationError('Service initialization failed', error);
+    }
+}
+```
+
+### Error Handling
+
+```typescript
+// Good: Structured error handling with context
+try {
+    const result = await externalService.call();
+    return result;
+} catch (error) {
+    logger.error('External service call failed', {
+        service: 'external-service',
+        operation: 'call',
+        error: error instanceof Error ? error.message : String(error),
+    });
+    throw new ExternalServiceError('Failed to call external service', error);
+}
+```
+
+### Testing Pattern
+
+```typescript
+// Good: Comprehensive test with proper setup
+describe('SisenseService', () => {
+    let service: SisenseService;
+    let mockApiClient: jest.Mocked<ApiClient>;
+
+    beforeEach(() => {
+        mockApiClient = createMockApiClient();
+        service = new SisenseService(mockApiClient);
+    });
+
+    describe('getDashboard', () => {
+        it('should return dashboard when valid ID provided', async () => {
+            // Arrange
+            const dashboardId = 'test-dashboard-id';
+            const expectedDashboard = createMockDashboard({ id: dashboardId });
+            mockApiClient.getDashboard.mockResolvedValue(expectedDashboard);
+
+            // Act
+            const result = await service.getDashboard(dashboardId);
+
+            // Assert
+            expect(result).toEqual(expectedDashboard);
+            expect(mockApiClient.getDashboard).toHaveBeenCalledWith(dashboardId);
+        });
+
+        it('should throw NotFoundError when dashboard does not exist', async () => {
+            // Arrange
+            const dashboardId = 'non-existent-id';
+            mockApiClient.getDashboard.mockRejectedValue(new Error('Not found'));
+
+            // Act & Assert
+            await expect(service.getDashboard(dashboardId)).rejects.toThrow(NotFoundError);
+        });
+    });
+});
+```
+
+Remember: Write code that is not just functional, but maintainable, testable, and follows the established patterns in this codebase. Always consider the next developer who will work on this code.

@@ -1,7 +1,20 @@
 import type { SisenseConfig } from '../types/index.js';
+import {
+    ConfigurationError,
+    ExternalServiceError,
+    NetworkError,
+    NotFoundError,
+    AuthenticationError,
+} from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { safeParse } from '../utils/json.js';
 import { env } from '../config/environment.js';
+import {
+    validateSisenseConfig,
+    validateDashboardId,
+    validateCubeId,
+    validateQuery,
+} from '../utils/validation.js';
 
 // Type for fetch request options
 interface RequestOptions {
@@ -16,15 +29,36 @@ export class SisenseService {
     private readonly baseUrl: string;
 
     constructor(config?: Partial<SisenseConfig>) {
-        this.config = {
-            url: config?.url ?? env.SISENSE_URL ?? '',
-            apiKey: config?.apiKey ?? env.SISENSE_API_KEY ?? '',
-        };
+        try {
+            const rawConfig = {
+                url: config?.url ?? env.SISENSE_URL ?? '',
+                apiKey: config?.apiKey ?? env.SISENSE_API_KEY ?? '',
+            };
 
-        this.baseUrl = this.config.url;
+            // Validate configuration if both URL and API key are provided
+            if (rawConfig.url && rawConfig.apiKey) {
+                this.config = validateSisenseConfig(rawConfig);
+            } else {
+                this.config = rawConfig as SisenseConfig;
+            }
 
-        if (!this.isConfigured()) {
-            logger.warn('Sisense is not properly configured. Some features may not be available.');
+            this.baseUrl = this.config.url;
+
+            if (!this.isConfigured()) {
+                logger.warn(
+                    'Sisense is not properly configured. Some features may not be available.',
+                    {
+                        hasUrl: Boolean(this.config.url),
+                        hasApiKey: Boolean(this.config.apiKey),
+                    }
+                );
+            }
+        } catch (error) {
+            logger.error('Failed to initialize SisenseService', { error });
+            throw new ConfigurationError('Invalid Sisense configuration', {
+                originalError: error instanceof Error ? error.message : String(error),
+                providedConfig: config,
+            });
         }
     }
 
@@ -56,7 +90,10 @@ export class SisenseService {
      */
     private async makeRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
         if (!this.isConfigured()) {
-            throw new Error('Sisense is not properly configured');
+            throw new ConfigurationError('Sisense is not properly configured', {
+                hasUrl: Boolean(this.config.url),
+                hasApiKey: Boolean(this.config.apiKey),
+            });
         }
 
         const url = `${this.baseUrl.replace(/\/$/, '')}${endpoint}`;
@@ -65,7 +102,11 @@ export class SisenseService {
             ...options.headers,
         };
 
-        logger.debug(`Making request to Sisense: ${url}`);
+        logger.debug('Making request to Sisense', {
+            url,
+            method: options.method || 'GET',
+            endpoint,
+        });
 
         try {
             const response = await fetch(url, {
@@ -74,25 +115,79 @@ export class SisenseService {
             });
 
             if (!response.ok) {
-                throw new Error(`Sisense API error: ${response.status} ${response.statusText}`);
+                const errorContext = {
+                    url,
+                    status: response.status,
+                    statusText: response.statusText,
+                    method: options.method || 'GET',
+                };
+
+                if (response.status === 401) {
+                    throw new AuthenticationError('Sisense authentication failed', errorContext);
+                } else if (response.status === 404) {
+                    throw new NotFoundError('Sisense resource not found', errorContext);
+                } else if (response.status >= 500) {
+                    throw new ExternalServiceError('Sisense server error', errorContext);
+                } else {
+                    throw new ExternalServiceError(
+                        `Sisense API error: ${response.status} ${response.statusText}`,
+                        errorContext
+                    );
+                }
             }
 
             const responseText = await response.text();
             logger.debug('Sisense API response received', {
                 status: response.status,
                 contentLength: responseText.length,
+                endpoint,
             });
 
             // Try to parse JSON safely
             const data = safeParse<T>(responseText);
             if (data === null) {
-                throw new Error('Invalid JSON response from Sisense API');
+                throw new ExternalServiceError('Invalid JSON response from Sisense API', {
+                    url,
+                    responseLength: responseText.length,
+                    responsePreview: responseText.substring(0, 200),
+                });
             }
 
             return data;
         } catch (error) {
-            logger.error('Sisense API request failed', { error, url });
-            throw error;
+            if (
+                error instanceof Error &&
+                error.name === 'TypeError' &&
+                error.message.includes('fetch')
+            ) {
+                throw new NetworkError('Network error connecting to Sisense', {
+                    url,
+                    originalError: error.message,
+                });
+            }
+
+            // Re-throw our custom errors as-is
+            if (
+                error instanceof ConfigurationError ||
+                error instanceof AuthenticationError ||
+                error instanceof NotFoundError ||
+                error instanceof ExternalServiceError ||
+                error instanceof NetworkError
+            ) {
+                throw error;
+            }
+
+            logger.error('Sisense API request failed', {
+                error: error instanceof Error ? error.message : String(error),
+                url,
+                endpoint,
+            });
+
+            throw new ExternalServiceError('Sisense API request failed', {
+                url,
+                endpoint,
+                originalError: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 
@@ -121,23 +216,26 @@ export class SisenseService {
      * Get specific dashboard by ID
      */
     public async getDashboard(dashboardId: string): Promise<Record<string, unknown>> {
-        return this.makeRequest(`/api/v1/dashboards/${dashboardId}`);
+        const validatedId = validateDashboardId(dashboardId);
+        return this.makeRequest(`/api/v1/dashboards/${validatedId}`);
     }
 
     /**
      * Get widgets from a dashboard
      */
     public async getDashboardWidgets(dashboardId: string): Promise<Record<string, unknown>[]> {
-        return this.makeRequest(`/api/v1/dashboards/${dashboardId}/widgets`);
+        const validatedId = validateDashboardId(dashboardId);
+        return this.makeRequest(`/api/v1/dashboards/${validatedId}/widgets`);
     }
 
     /**
      * Execute a query
      */
-    public async executeQuery(query: Record<string, unknown>): Promise<Record<string, unknown>> {
+    public async executeQuery(query: unknown): Promise<Record<string, unknown>> {
+        const validatedQuery = validateQuery(query);
         return this.makeRequest('/api/v1/query/execute', {
             method: 'POST',
-            body: JSON.stringify(query),
+            body: JSON.stringify(validatedQuery),
         });
     }
 
@@ -152,6 +250,7 @@ export class SisenseService {
      * Get cube metadata
      */
     public async getCubeMetadata(cubeId: string): Promise<Record<string, unknown>> {
-        return this.makeRequest(`/api/v1/cubes/${cubeId}/metadata`);
+        const validatedId = validateCubeId(cubeId);
+        return this.makeRequest(`/api/v1/cubes/${validatedId}/metadata`);
     }
 }
