@@ -1,18 +1,18 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
     CallToolRequestSchema,
     ListResourcesRequestSchema,
     ListToolsRequestSchema,
     ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types';
-import { env } from '../config/environment';
-import { SwaggerClient, ToolGenerator } from '../services';
-import type { MCPServerInstance, ResourceDefinition, ToolDefinition } from '../types';
-import { ValidationError } from '../types';
-import { safeStringify } from '../utils/json';
-import { logger } from '../utils/logger';
-import { validateResourceUri } from '../utils/validation';
+} from '@modelcontextprotocol/sdk/types.js';
+import { env } from '../config/environment.js';
+import { SwaggerClient, ToolGenerator } from '../services/index.js';
+import type { MCPServerInstance, ResourceDefinition, ToolDefinition } from '../types/index.js';
+import { ValidationError } from '../types/index.js';
+import { safeStringify } from '../utils/json.js';
+import { logger } from '../utils/logger.js';
+import { validateResourceUri } from '../utils/validation.js';
 export class SisenseMCPServer implements MCPServerInstance {
     public readonly server: Server;
     public readonly transport: StdioServerTransport;
@@ -124,7 +124,6 @@ export class SisenseMCPServer implements MCPServerInstance {
     }
 
     private getAvailableTools(): ToolDefinition[] {
-        this.toolGenerator.generateTools();
         return this.dynamicTools;
     }
 

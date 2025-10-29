@@ -5,7 +5,7 @@ import {
     ExternalServiceError,
     NetworkError,
     NotFoundError,
-} from '../types';
+} from '../types/index.js';
 import { safeParse } from '../utils/json.js';
 import { logger } from '../utils/logger.js';
 

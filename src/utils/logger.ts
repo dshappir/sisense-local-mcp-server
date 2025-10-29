@@ -1,6 +1,6 @@
 import { env, isDebugEnabled, LOG_LEVELS, type LogLevel } from '../config/environment.js';
 import type { Logger } from '../types/index.js';
-import { safeStringify } from './json';
+import { safeStringify } from './json.js';
 
 const COLORS: Record<LogLevel, string> = {
     error: 'red',

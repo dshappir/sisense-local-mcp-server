@@ -1,4 +1,4 @@
-import { env } from '../config/environment';
+import { env } from '../config/environment.js';
 import type { ToolDefinition } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import type {
@@ -286,9 +286,6 @@ export class ToolGenerator {
         return jsonSchema || undefined;
     }
 
-    /**
-     * Convert Swagger/OpenAPI schema to JSON schema
-     */
     private convertSchemaToJsonSchema(
         schema: Schema | ReferenceObject,
         spec: SwaggerSpec
@@ -298,7 +295,7 @@ export class ToolGenerator {
         }
 
         if ('$ref' in schema) {
-            const refSchema = this.resolveReference<Schema>(schema['$ref'], spec);
+            const refSchema = this.resolveReference<Schema>(schema.$ref, spec);
             if (refSchema) {
                 return this.convertSchemaToJsonSchema(refSchema as unknown as Schema, spec);
             }
@@ -309,7 +306,6 @@ export class ToolGenerator {
             ...schema,
         };
 
-        // Handle array items
         if (schema.type === 'array' && schema.items) {
             if (env.NO_SCHEMA_ARRAYS) {
                 return null;
@@ -321,7 +317,6 @@ export class ToolGenerator {
             jsonSchema.items = itemsSchema;
         }
 
-        // Handle object properties
         if (schema.type === 'object' && schema.properties) {
             jsonSchema.properties = {};
             const properties = schema.properties;
@@ -350,12 +345,14 @@ export class ToolGenerator {
         spec: SwaggerSpec
     ): Parameter | undefined {
         if ('$ref' in param) {
-            return this.resolveReference<Parameter>(param['$ref'], spec);
+            return this.resolveReference<Parameter>(param.$ref, spec);
         }
-        if (param.schema && '$ref' in param.schema) {
+        if (param.schema) {
             return {
                 ...param,
-                ...this.resolveReference<Schema>(param.schema['$ref'], spec),
+                ...('$ref' in param.schema
+                    ? this.resolveReference<Schema>(param.schema.$ref, spec)
+                    : param.schema),
             } as Parameter;
         }
         return param;
