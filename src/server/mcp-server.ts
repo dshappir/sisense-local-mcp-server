@@ -8,17 +8,18 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { env } from '../config/environment.js';
 import { SwaggerClient, ToolGenerator } from '../services/index.js';
-import type { MCPServerInstance, ResourceDefinition, ToolDefinition } from '../types/index.js';
+import type { ResourceDefinition, ToolDefinition } from '../types/index.js';
 import { ValidationError } from '../types/index.js';
 import { safeStringify } from '../utils/json.js';
 import { logger } from '../utils/logger.js';
 import { validateResourceUri } from '../utils/validation.js';
-export class SisenseMCPServer implements MCPServerInstance {
+export class SisenseMCPServer {
     public readonly server: Server;
     public readonly transport: StdioServerTransport;
+
     private readonly swaggerClient: SwaggerClient;
     private readonly toolGenerator: ToolGenerator;
-    private dynamicTools: ToolDefinition[] = [];
+    private readonly dynamicTools: Promise<ToolDefinition[]>;
 
     constructor() {
         this.swaggerClient = new SwaggerClient({
@@ -42,7 +43,8 @@ export class SisenseMCPServer implements MCPServerInstance {
 
         this.transport = new StdioServerTransport();
         this.setupHandlers();
-        this.initializeDynamicTools();
+
+        this.dynamicTools = this.generateDynamicTools();
     }
 
     private setupHandlers(): void {
@@ -50,7 +52,7 @@ export class SisenseMCPServer implements MCPServerInstance {
         this.server.setRequestHandler(ListToolsRequestSchema, async () => {
             logger.debug('Listing available tools');
             return {
-                tools: this.getAvailableTools(),
+                tools: await this.dynamicTools,
             };
         });
 
@@ -101,30 +103,21 @@ export class SisenseMCPServer implements MCPServerInstance {
     /**
      * Initialize dynamic tools from Swagger/OpenAPI specifications
      */
-    private async initializeDynamicTools(): Promise<void> {
+    private async generateDynamicTools(): Promise<ToolDefinition[]> {
         try {
             if (!this.swaggerClient.isConfigured()) {
                 logger.warn('SwaggerClient not configured, no tools available');
-                this.dynamicTools = [];
-                return;
+                return [];
             }
 
             logger.info('Initializing dynamic tools from Sisense API specifications');
-            this.dynamicTools = await this.toolGenerator.generateTools();
-
-            logger.info('Successfully initialized dynamic tools', {
-                toolCount: this.dynamicTools.length,
-            });
+            return this.toolGenerator.generateTools();
         } catch (error) {
             logger.error('Failed to initialize dynamic tools, returning empty list', {
                 error: error instanceof Error ? error.message : String(error),
             });
-            this.dynamicTools = [];
+            return [];
         }
-    }
-
-    private getAvailableTools(): ToolDefinition[] {
-        return this.dynamicTools;
     }
 
     private async getAvailableResources(): Promise<ResourceDefinition[]> {
@@ -165,7 +158,8 @@ export class SisenseMCPServer implements MCPServerInstance {
         args: Record<string, unknown>
     ): Promise<{ content: Array<{ type: string; text: string }> }> {
         try {
-            const tool = this.dynamicTools.find(tool => tool.name === name);
+            const tools = await this.dynamicTools;
+            const tool = tools.find(tool => tool.name === name);
             if (!tool) {
                 throw new ValidationError(`Unknown tool: ${name}`);
             }
@@ -280,10 +274,10 @@ export class SisenseMCPServer implements MCPServerInstance {
         await this.server.connect(this.transport);
         logger.info('Sisense MCP Server started successfully');
 
-        // Log available tools for debugging
+        const tools = await this.dynamicTools;
         logger.debug('Available tools', {
-            toolCount: this.dynamicTools.length,
-            toolNames: this.dynamicTools.map(t => t.name),
+            toolCount: tools.length,
+            toolNames: tools.map(t => t.name),
         });
     }
 

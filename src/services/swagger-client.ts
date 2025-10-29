@@ -1,4 +1,4 @@
-import type { ApiCallMapping, SisenseConfig } from '../types';
+import type { SisenseConfig } from '../types';
 import {
     AuthenticationError,
     ConfigurationError,
@@ -99,14 +99,10 @@ export interface Schema {
     in?: InType;
 }
 
-// Re-export ApiCallMapping from types for convenience
-export type { ApiCallMapping } from '../types/index.js';
-
 export class SwaggerClient {
     private readonly config: SisenseConfig;
     private readonly baseUrl: string;
     private swaggerSpec: SwaggerSpec | null = null;
-    private apiCallMap: Map<string, ApiCallMapping> = new Map();
 
     constructor(config: SisenseConfig) {
         this.config = config;
@@ -242,9 +238,6 @@ export class SwaggerClient {
         }
     }
 
-    /**
-     * Fetch Swagger v2 specification from Sisense server
-     */
     public async fetchSwaggerSpec(endpoint: string): Promise<SwaggerSpec> {
         if (this.swaggerSpec) {
             return this.swaggerSpec;
@@ -272,23 +265,6 @@ export class SwaggerClient {
         }
     }
 
-    /**
-     * Get the API call mapping for a specific tool
-     */
-    public getApiCallMapping(toolName: string): ApiCallMapping | undefined {
-        return this.apiCallMap.get(toolName);
-    }
-
-    /**
-     * Set the API call mapping for a tool
-     */
-    public setApiCallMapping(toolName: string, mapping: ApiCallMapping): void {
-        this.apiCallMap.set(toolName, mapping);
-    }
-
-    /**
-     * Make an API request (public method for external use)
-     */
     public async makeApiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
         return this.makeRequest<T>(endpoint, options);
     }

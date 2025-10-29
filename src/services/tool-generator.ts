@@ -195,10 +195,11 @@ export class ToolGenerator {
      */
     private sanitizeToolName(name: string): string {
         return name
+            .replace(/{[^}]+}/g, 'id')
             .toLowerCase()
             .replace(/[^a-z0-9_]/g, '_')
             .replace(/_+/g, '_')
-            .replace(/^_|_$|{|}/g, '');
+            .replace(/^_|_$/g, '');
     }
 
     /**
