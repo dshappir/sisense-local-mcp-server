@@ -1,20 +1,15 @@
-import type { SisenseConfig } from '../types/index.js';
+import type { ApiCallMapping, SisenseConfig } from '../types';
 import {
+    AuthenticationError,
     ConfigurationError,
     ExternalServiceError,
     NetworkError,
     NotFoundError,
-    AuthenticationError,
-} from '../types/index.js';
-import { logger } from '../utils/logger.js';
+} from '../types';
 import { safeParse } from '../utils/json.js';
-import { env } from '../config/environment.js';
-import {
-    validateSisenseConfig,
-    validateDashboardId,
-    validateCubeId,
-    validateQuery,
-} from '../utils/validation.js';
+import { logger } from '../utils/logger.js';
+
+type InType = 'query' | 'header' | 'path' | 'cookie' | 'body';
 
 // Type for fetch request options
 interface RequestOptions {
@@ -24,46 +19,102 @@ interface RequestOptions {
     signal?: AbortSignal;
 }
 
-export class SisenseService {
+export interface SwaggerSpec {
+    basePath: string;
+    consumes: string[];
+    definitions?: Record<string, Schema>;
+    parameters?: Record<string, Parameter>;
+    swagger?: string;
+    openapi?: string;
+    info: {
+        title: string;
+        version: string;
+        description?: string;
+    };
+    paths: Record<string, PathItem>;
+    components?: {
+        schemas?: Record<string, Schema>;
+    };
+}
+
+export interface PathItem {
+    get?: Operation;
+    post?: Operation;
+    put?: Operation;
+    delete?: Operation;
+    patch?: Operation;
+    head?: Operation;
+    options?: Operation;
+    parameters?: Parameter[];
+}
+
+export type MethodType = Exclude<keyof PathItem, 'parameters'>;
+
+export interface Operation {
+    operationId?: string;
+    tags?: string[];
+    summary?: string;
+    description?: string;
+    parameters?: Array<Parameter | ReferenceObject>;
+    responses: Record<string, Response>;
+    deprecated?: boolean;
+}
+
+export interface Parameter {
+    name: string;
+    in: InType;
+    required?: boolean;
+    description?: string;
+    schema?: Schema | ReferenceObject;
+    type?: string;
+    format?: string;
+    pattern?: string;
+    minLength?: number;
+    maxLength?: number;
+    minimum?: number;
+    maximum?: number;
+    exclusiveMinimum?: boolean;
+    exclusiveMaximum?: boolean;
+    multipleOf?: number;
+    enum?: string[];
+}
+
+export interface ReferenceObject {
+    $ref: string;
+}
+
+export interface Response {
+    description: string;
+    schema?: Schema | ReferenceObject;
+}
+
+export interface Schema {
+    type?: string;
+    format?: string;
+    description?: string;
+    properties?: Record<string, Schema>;
+    items?: Schema | ReferenceObject;
+    required?: string[];
+    enum?: string[];
+    in?: InType;
+}
+
+// Re-export ApiCallMapping from types for convenience
+export type { ApiCallMapping } from '../types/index.js';
+
+export class SwaggerClient {
     private readonly config: SisenseConfig;
     private readonly baseUrl: string;
+    private swaggerSpec: SwaggerSpec | null = null;
+    private apiCallMap: Map<string, ApiCallMapping> = new Map();
 
-    constructor(config?: Partial<SisenseConfig>) {
-        try {
-            const rawConfig = {
-                url: config?.url ?? env.SISENSE_URL ?? '',
-                apiKey: config?.apiKey ?? env.SISENSE_API_KEY ?? '',
-            };
-
-            // Validate configuration if both URL and API key are provided
-            if (rawConfig.url && rawConfig.apiKey) {
-                this.config = validateSisenseConfig(rawConfig);
-            } else {
-                this.config = rawConfig as SisenseConfig;
-            }
-
-            this.baseUrl = this.config.url;
-
-            if (!this.isConfigured()) {
-                logger.warn(
-                    'Sisense is not properly configured. Some features may not be available.',
-                    {
-                        hasUrl: Boolean(this.config.url),
-                        hasApiKey: Boolean(this.config.apiKey),
-                    }
-                );
-            }
-        } catch (error) {
-            logger.error('Failed to initialize SisenseService', { error });
-            throw new ConfigurationError('Invalid Sisense configuration', {
-                originalError: error instanceof Error ? error.message : String(error),
-                providedConfig: config,
-            });
-        }
+    constructor(config: SisenseConfig) {
+        this.config = config;
+        this.baseUrl = config.url;
     }
 
     /**
-     * Check if Sisense is properly configured
+     * Check if the client is properly configured
      */
     public isConfigured(): boolean {
         return Boolean(this.baseUrl && this.config.apiKey);
@@ -86,11 +137,11 @@ export class SisenseService {
     }
 
     /**
-     * Make an authenticated request to Sisense API
+     * Make an authenticated request to the Sisense API
      */
     private async makeRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
         if (!this.isConfigured()) {
-            throw new ConfigurationError('Sisense is not properly configured', {
+            throw new ConfigurationError('SwaggerClient is not properly configured', {
                 hasUrl: Boolean(this.config.url),
                 hasApiKey: Boolean(this.config.apiKey),
             });
@@ -102,7 +153,7 @@ export class SisenseService {
             ...options.headers,
         };
 
-        logger.debug('Making request to Sisense', {
+        logger.debug('Making request to Sisense API', {
             url,
             method: options.method || 'GET',
             endpoint,
@@ -192,65 +243,53 @@ export class SisenseService {
     }
 
     /**
-     * Get Sisense server information
+     * Fetch Swagger v2 specification from Sisense server
      */
-    public async getServerInfo(): Promise<Record<string, unknown>> {
-        return this.makeRequest('/api/v1/server/info');
+    public async fetchSwaggerSpec(endpoint: string): Promise<SwaggerSpec> {
+        if (this.swaggerSpec) {
+            return this.swaggerSpec;
+        }
+
+        logger.info('Fetching Swagger v2 specification from Sisense server');
+
+        try {
+            this.swaggerSpec = await this.makeRequest<SwaggerSpec>(
+                `${endpoint}?schemaType=swagger`
+            );
+
+            logger.info('Successfully fetched Swagger v2 specification', {
+                title: this.swaggerSpec.info?.title,
+                version: this.swaggerSpec.info?.version,
+                pathCount: Object.keys(this.swaggerSpec.paths || {}).length,
+            });
+
+            return this.swaggerSpec;
+        } catch (error) {
+            logger.error('Failed to fetch Swagger v2 specification', {
+                error: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
+        }
     }
 
     /**
-     * Get available data sources
+     * Get the API call mapping for a specific tool
      */
-    public async getDataSources(): Promise<Record<string, unknown>[]> {
-        return this.makeRequest('/api/v1/datasources');
+    public getApiCallMapping(toolName: string): ApiCallMapping | undefined {
+        return this.apiCallMap.get(toolName);
     }
 
     /**
-     * Get dashboards
+     * Set the API call mapping for a tool
      */
-    public async getDashboards(): Promise<Record<string, unknown>[]> {
-        return this.makeRequest('/api/v1/dashboards');
+    public setApiCallMapping(toolName: string, mapping: ApiCallMapping): void {
+        this.apiCallMap.set(toolName, mapping);
     }
 
     /**
-     * Get specific dashboard by ID
+     * Make an API request (public method for external use)
      */
-    public async getDashboard(dashboardId: string): Promise<Record<string, unknown>> {
-        const validatedId = validateDashboardId(dashboardId);
-        return this.makeRequest(`/api/v1/dashboards/${validatedId}`);
-    }
-
-    /**
-     * Get widgets from a dashboard
-     */
-    public async getDashboardWidgets(dashboardId: string): Promise<Record<string, unknown>[]> {
-        const validatedId = validateDashboardId(dashboardId);
-        return this.makeRequest(`/api/v1/dashboards/${validatedId}/widgets`);
-    }
-
-    /**
-     * Execute a query
-     */
-    public async executeQuery(query: unknown): Promise<Record<string, unknown>> {
-        const validatedQuery = validateQuery(query);
-        return this.makeRequest('/api/v1/query/execute', {
-            method: 'POST',
-            body: JSON.stringify(validatedQuery),
-        });
-    }
-
-    /**
-     * Get available cubes
-     */
-    public async getCubes(): Promise<Record<string, unknown>[]> {
-        return this.makeRequest('/api/v1/cubes');
-    }
-
-    /**
-     * Get cube metadata
-     */
-    public async getCubeMetadata(cubeId: string): Promise<Record<string, unknown>> {
-        const validatedId = validateCubeId(cubeId);
-        return this.makeRequest(`/api/v1/cubes/${validatedId}/metadata`);
+    public async makeApiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+        return this.makeRequest<T>(endpoint, options);
     }
 }

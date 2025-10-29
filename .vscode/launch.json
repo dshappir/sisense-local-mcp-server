@@ -133,6 +133,66 @@
             "preLaunchTask": "mcp-inspector-prod"
         },
         {
+            "name": "Attach to Node.js (Port 9229)",
+            "type": "node",
+            "request": "attach",
+            "port": 9229,
+            "restart": true,
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "${workspaceFolder}",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ]
+        },
+        {
+            "name": "Attach to Node.js (Port 9230)",
+            "type": "node",
+            "request": "attach",
+            "port": 9230,
+            "restart": true,
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "${workspaceFolder}",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ]
+        },
+        {
+            "name": "Attach to Node.js (Custom Port)",
+            "type": "node",
+            "request": "attach",
+            "port": "${input:debugPort}",
+            "restart": true,
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "${workspaceFolder}",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ]
+        },
+        {
             "name": "Debug Tests",
             "type": "node",
             "request": "launch",
@@ -241,6 +301,12 @@
             "id": "testFile",
             "description": "Enter the test file path or pattern",
             "default": "tests/",
+            "type": "promptString"
+        },
+        {
+            "id": "debugPort",
+            "description": "Enter the debug port number",
+            "default": "9229",
             "type": "promptString"
         }
     ]

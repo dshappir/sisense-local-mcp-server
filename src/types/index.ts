@@ -1,6 +1,7 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { LogLevel } from '../config/environment.js';
+import type { Schema } from '../services/swagger-client.js';
 
 // MCP Server Configuration
 export interface MCPServerConfig {
@@ -22,7 +23,10 @@ export interface SisenseConfig {
 export interface ToolDefinition {
     name: string;
     description: string;
-    inputSchema: Record<string, unknown>;
+    inputSchema: Schema;
+    outputSchema?: Schema;
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+    path: string;
 }
 
 // Resource Definition
@@ -107,6 +111,9 @@ export interface Logger {
     info(message: string, data?: Record<string, unknown>): void;
     debug(message: string, data?: Record<string, unknown>): void;
 }
+
+// API Call Mapping for generated tools
+export interface ApiCallMapping {}
 
 // MCP Server Instance
 export interface MCPServerInstance {

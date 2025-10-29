@@ -58,7 +58,7 @@ async function main(): Promise<void> {
 
 // Only run main if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
+  main().catch(error => {
     logger.error('Unexpected error in main', { error });
     process.exit(1);
   });

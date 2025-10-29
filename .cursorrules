@@ -21,14 +21,23 @@ You are an expert TypeScript and Node.js developer working on a Model Context Pr
 - Use `const assertions` and `as const` for immutable data structures
 - Prefer interfaces over types for object shapes, types for unions/primitives
 - Use branded types for domain-specific identifiers (e.g., `type UserId = string & { __brand: 'UserId' }`)
+- Don't specify explicit file extensions on `import`
+- When possinle, specify folder in `import` instead of specifying `index` explicitly
 
 ### Code Organization
 
 - Follow the existing project structure: `src/` for source, `tests/` for tests
 - Use barrel exports (`index.ts`) for clean module boundaries
 - Group related functionality into logical modules (services, utils, types, config)
-- Keep files focused and single-purpose (max ~300 lines per file)
+- Keep files focused and single-purpose (max ~400 lines per file)
 - Use meaningful file and directory names that reflect their purpose
+- Keep functions short (max ~80 lines per function), and apply single responsibility principle
+
+### Code comments
+
+- Prefer meaningful identifer names over code comments
+- Only add comments to provide meaningful information beyond the code
+- Don't include comments that restate the obvious
 
 ### Error Handling
 
@@ -45,6 +54,7 @@ You are an expert TypeScript and Node.js developer working on a Model Context Pr
 - Consider using `Promise.allSettled()` for parallel operations that shouldn't fail together
 - Use `AbortController` for cancellable operations
 - Handle cleanup in finally blocks
+- Avoid `return await`. Instead simply return the promise
 
 ### Logging and Observability
 

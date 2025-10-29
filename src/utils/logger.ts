@@ -1,32 +1,39 @@
+import { env, isDebugEnabled, LOG_LEVELS, type LogLevel } from '../config/environment.js';
 import type { Logger } from '../types/index.js';
-import { env, isDebugEnabled, type LogLevel } from '../config/environment.js';
+import { safeStringify } from './json';
 
-export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
+const COLORS: Record<LogLevel, string> = {
+    error: 'red',
+    warn: 'yellow',
+    info: 'cyan',
+    debug: 'green',
+};
 
+type DataType = Record<string, unknown>;
 class AppLogger implements Logger {
     private readonly logLevel = env.LOG_LEVEL;
 
-    error(message: string, data?: Record<string, unknown>): void {
+    error(message: string, data?: DataType): void {
         this.print('error', message, data);
     }
 
-    warn(message: string, data?: Record<string, unknown>): void {
+    warn(message: string, data?: DataType): void {
         this.print('warn', message, data);
     }
 
-    info(message: string, data?: Record<string, unknown>): void {
+    info(message: string, data?: DataType): void {
         this.print('info', message, data);
     }
 
-    debug(message: string, data?: Record<string, unknown>): void {
+    debug(message: string, data?: DataType): void {
         if (this.shouldLog('debug') || isDebugEnabled()) {
-            console.error(formatMessage('debug', message, data));
+            logWithColor('debug', message, data);
         }
     }
 
-    private print(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+    private print(level: LogLevel, message: string, data?: DataType): void {
         if (this.shouldLog(level)) {
-            console.error(formatMessage(level, message, data));
+            logWithColor(level, message, data);
         }
     }
 
@@ -37,36 +44,20 @@ class AppLogger implements Logger {
     }
 }
 
-function formatMessage(level: LogLevel, message: string, data?: Record<string, unknown>): string {
+function logWithColor(level: LogLevel, message: string, data?: DataType): void {
+    console.error(formatMessage(level, message, data), `color: ${COLORS[level]}`);
+}
+
+function formatMessage(level: LogLevel, message: string, data?: DataType): string {
     const timestamp = new Date().toISOString();
     const logEntry = {
         timestamp,
         level: level.toUpperCase(),
         message,
-        ...(data && { data: safeStringifyData(data) }),
+        ...(data && { data: safeStringify(data) }),
     };
 
-    return JSON.stringify(logEntry);
-}
-
-function safeStringifyData(data: Record<string, unknown>): unknown {
-    try {
-        // Handle circular references by using a WeakSet to track seen objects
-        const seen = new WeakSet();
-        return JSON.parse(
-            JSON.stringify(data, (key, value) => {
-                if (typeof value === 'object' && value !== null) {
-                    if (seen.has(value)) {
-                        return '[Circular Reference]';
-                    }
-                    seen.add(value);
-                }
-                return value;
-            })
-        );
-    } catch (error) {
-        return `[Error serializing data: ${error instanceof Error ? error.message : 'Unknown error'}]`;
-    }
+    return `%c${JSON.stringify(logEntry)}`;
 }
 
 // Create and export a singleton logger instance

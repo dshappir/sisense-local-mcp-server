@@ -1,31 +1,32 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import {
     CallToolRequestSchema,
     ListResourcesRequestSchema,
     ListToolsRequestSchema,
     ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import type { MCPServerInstance, ToolDefinition, ResourceDefinition } from '../types/index.js';
-import { ValidationError } from '../types/index.js';
-import { logger } from '../utils/logger.js';
-import { safeStringify } from '../utils/json.js';
-import { SisenseService } from '../services/sisense.js';
-import { env } from '../config/environment.js';
-import {
-    validateDashboardId,
-    validateCubeId,
-    validateQuery,
-    validateResourceUri,
-} from '../utils/validation.js';
-
+} from '@modelcontextprotocol/sdk/types';
+import { env } from '../config/environment';
+import { SwaggerClient, ToolGenerator } from '../services';
+import type { MCPServerInstance, ResourceDefinition, ToolDefinition } from '../types';
+import { ValidationError } from '../types';
+import { safeStringify } from '../utils/json';
+import { logger } from '../utils/logger';
+import { validateResourceUri } from '../utils/validation';
 export class SisenseMCPServer implements MCPServerInstance {
     public readonly server: Server;
     public readonly transport: StdioServerTransport;
-    private readonly sisenseService: SisenseService;
+    private readonly swaggerClient: SwaggerClient;
+    private readonly toolGenerator: ToolGenerator;
+    private dynamicTools: ToolDefinition[] = [];
 
     constructor() {
-        this.sisenseService = new SisenseService();
+        this.swaggerClient = new SwaggerClient({
+            url: env.SISENSE_URL || 'http://10.220.73.124:30845/',
+            apiKey: env.SISENSE_API_KEY || '',
+        });
+        this.toolGenerator = new ToolGenerator(this.swaggerClient);
+
         this.server = new Server(
             {
                 name: env.MCP_SERVER_NAME,
@@ -41,6 +42,7 @@ export class SisenseMCPServer implements MCPServerInstance {
 
         this.transport = new StdioServerTransport();
         this.setupHandlers();
+        this.initializeDynamicTools();
     }
 
     private setupHandlers(): void {
@@ -96,117 +98,38 @@ export class SisenseMCPServer implements MCPServerInstance {
         });
     }
 
+    /**
+     * Initialize dynamic tools from Swagger/OpenAPI specifications
+     */
+    private async initializeDynamicTools(): Promise<void> {
+        try {
+            if (!this.swaggerClient.isConfigured()) {
+                logger.warn('SwaggerClient not configured, no tools available');
+                this.dynamicTools = [];
+                return;
+            }
+
+            logger.info('Initializing dynamic tools from Sisense API specifications');
+            this.dynamicTools = await this.toolGenerator.generateTools();
+
+            logger.info('Successfully initialized dynamic tools', {
+                toolCount: this.dynamicTools.length,
+            });
+        } catch (error) {
+            logger.error('Failed to initialize dynamic tools, returning empty list', {
+                error: error instanceof Error ? error.message : String(error),
+            });
+            this.dynamicTools = [];
+        }
+    }
+
     private getAvailableTools(): ToolDefinition[] {
-        return [
-            {
-                name: 'get_server_info',
-                description: 'Get information about the Sisense server',
-                inputSchema: {
-                    type: 'object',
-                    properties: {},
-                },
-            },
-            {
-                name: 'list_data_sources',
-                description: 'List all available data sources in Sisense',
-                inputSchema: {
-                    type: 'object',
-                    properties: {},
-                },
-            },
-            {
-                name: 'list_dashboards',
-                description: 'List all dashboards in Sisense',
-                inputSchema: {
-                    type: 'object',
-                    properties: {},
-                },
-            },
-            {
-                name: 'get_dashboard',
-                description: 'Get details of a specific dashboard',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        dashboardId: {
-                            type: 'string',
-                            description: 'The ID of the dashboard to retrieve',
-                        },
-                    },
-                    required: ['dashboardId'],
-                },
-            },
-            {
-                name: 'get_dashboard_widgets',
-                description: 'Get widgets from a specific dashboard',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        dashboardId: {
-                            type: 'string',
-                            description: 'The ID of the dashboard',
-                        },
-                    },
-                    required: ['dashboardId'],
-                },
-            },
-            {
-                name: 'execute_query',
-                description: 'Execute a query against Sisense',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        query: {
-                            type: 'object',
-                            description: 'The query object to execute',
-                        },
-                    },
-                    required: ['query'],
-                },
-            },
-            {
-                name: 'list_cubes',
-                description: 'List all available cubes in Sisense',
-                inputSchema: {
-                    type: 'object',
-                    properties: {},
-                },
-            },
-            {
-                name: 'get_cube_metadata',
-                description: 'Get metadata for a specific cube',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        cubeId: {
-                            type: 'string',
-                            description: 'The ID of the cube',
-                        },
-                    },
-                    required: ['cubeId'],
-                },
-            },
-        ];
+        this.toolGenerator.generateTools();
+        return this.dynamicTools;
     }
 
     private async getAvailableResources(): Promise<ResourceDefinition[]> {
-        if (!this.sisenseService.isConfigured()) {
-            logger.warn('Sisense not configured, returning empty resources list');
-            return [];
-        }
-
-        try {
-            const dashboards = await this.sisenseService.getDashboards();
-            return dashboards.map((dashboard: any) => ({
-                uri: `sisense://dashboard/${dashboard.oid}`,
-                name: dashboard.title || `Dashboard ${dashboard.oid}`,
-                description: dashboard.description,
-                mimeType: 'application/json',
-            }));
-        } catch (error) {
-            logger.error('Failed to get available resources', { error });
-            return [];
-        }
+        return [];
     }
 
     private async readResource(
@@ -224,29 +147,11 @@ export class SisenseMCPServer implements MCPServerInstance {
                 });
             }
 
-            let data: Record<string, unknown>;
-
-            switch (resourceType) {
-                case 'dashboard':
-                    data = await this.sisenseService.getDashboard(resourceId);
-                    break;
-                default:
-                    throw new ValidationError(`Unsupported resource type: ${resourceType}`, {
-                        uri: validatedUri,
-                        resourceType,
-                        supportedTypes: ['dashboard'],
-                    });
-            }
-
-            return {
-                contents: [
-                    {
-                        uri: validatedUri,
-                        mimeType: 'application/json',
-                        text: safeStringify(data, 2),
-                    },
-                ],
-            };
+            throw new ValidationError(`Unsupported resource type: ${resourceType}`, {
+                uri: validatedUri,
+                resourceType,
+                supportedTypes: ['dashboard'],
+            });
         } catch (error) {
             logger.error('Failed to read resource', {
                 uri,
@@ -261,47 +166,11 @@ export class SisenseMCPServer implements MCPServerInstance {
         args: Record<string, unknown>
     ): Promise<{ content: Array<{ type: string; text: string }> }> {
         try {
-            let result: unknown;
-
-            switch (name) {
-                case 'get_server_info':
-                    result = await this.sisenseService.getServerInfo();
-                    break;
-                case 'list_data_sources':
-                    result = await this.sisenseService.getDataSources();
-                    break;
-                case 'list_dashboards':
-                    result = await this.sisenseService.getDashboards();
-                    break;
-                case 'get_dashboard': {
-                    const dashboardId = validateDashboardId(args['dashboardId'] as string);
-                    result = await this.sisenseService.getDashboard(dashboardId);
-                    break;
-                }
-                case 'get_dashboard_widgets': {
-                    const widgetDashboardId = validateDashboardId(args['dashboardId'] as string);
-                    result = await this.sisenseService.getDashboardWidgets(widgetDashboardId);
-                    break;
-                }
-                case 'execute_query': {
-                    const query = validateQuery(args['query']);
-                    result = await this.sisenseService.executeQuery(query);
-                    break;
-                }
-                case 'list_cubes':
-                    result = await this.sisenseService.getCubes();
-                    break;
-                case 'get_cube_metadata': {
-                    const cubeId = validateCubeId(args['cubeId'] as string);
-                    result = await this.sisenseService.getCubeMetadata(cubeId);
-                    break;
-                }
-                default:
-                    throw new ValidationError(`Unknown tool: ${name}`, {
-                        toolName: name,
-                        availableTools: this.getAvailableTools().map(t => t.name),
-                    });
+            const tool = this.dynamicTools.find(tool => tool.name === name);
+            if (!tool) {
+                throw new ValidationError(`Unknown tool: ${name}`);
             }
+            const result = await this.executeDynamicTool(tool, args);
 
             return {
                 content: [
@@ -321,14 +190,102 @@ export class SisenseMCPServer implements MCPServerInstance {
         }
     }
 
+    /**
+     * Execute a dynamic tool using API mapping
+     */
+    private async executeDynamicTool(
+        tool: ToolDefinition,
+        args: Record<string, unknown>
+    ): Promise<unknown> {
+        logger.debug('Executing dynamic tool', {
+            toolName: tool.name,
+            method: tool.method,
+            path: tool.path,
+        });
+
+        let url = tool.path;
+        const queryParams = new URLSearchParams();
+        const headers: Record<string, string> = {};
+        let body: string | undefined;
+
+        const { properties = {}, required = [] } = tool.inputSchema;
+        for (const [name, schema] of Object.entries(properties)) {
+            if (Object.prototype.hasOwnProperty.call(args, name)) {
+                const stringValue = String(args[name]);
+                switch (schema.in) {
+                    case 'path':
+                        url = url.replace(`{${name}}`, encodeURIComponent(stringValue));
+                        break;
+                    case 'query':
+                        queryParams.append(name, stringValue);
+                        break;
+                    case 'header':
+                        headers[name] = stringValue;
+                        break;
+                    case 'body':
+                        body = JSON.stringify(args[name]);
+                        headers['Content-Type'] = 'application/json';
+                        break;
+                    case 'cookie':
+                        // Note: Cookie handling would need to be implemented based on requirements
+                        logger.debug('Cookie parameter not implemented', { name });
+                        break;
+                }
+            } else if (required.includes(name)) {
+                throw new ValidationError(`Missing required parameter: ${name}`);
+            }
+        }
+
+        return this.makeApiRequest(tool.method, url, {
+            headers,
+            ...(body && { body }),
+        });
+    }
+
+    /**
+     * Make an API request using the SwaggerClient
+     */
+    private async makeApiRequest(
+        method: string,
+        endpoint: string,
+        options: { headers?: Record<string, string>; body?: string } = {}
+    ): Promise<unknown> {
+        const requestOptions: any = {
+            method,
+        };
+
+        if (options.headers) {
+            requestOptions.headers = options.headers;
+        }
+
+        if (options.body !== undefined) {
+            requestOptions.body = options.body;
+        }
+
+        return this.swaggerClient.makeApiRequest(endpoint, requestOptions);
+    }
+
     public async start(): Promise<void> {
         logger.info('Starting Sisense MCP Server', {
             name: env.MCP_SERVER_NAME,
             version: env.MCP_SERVER_VERSION,
         });
 
+        // Add debug logging for MCP server startup
+        logger.debug('MCP Server configuration', {
+            transport: 'stdio',
+            serverName: env.MCP_SERVER_NAME,
+            serverVersion: env.MCP_SERVER_VERSION,
+        });
+
         await this.server.connect(this.transport);
         logger.info('Sisense MCP Server started successfully');
+
+        // Log available tools for debugging
+        logger.debug('Available tools', {
+            toolCount: this.dynamicTools.length,
+            toolNames: this.dynamicTools.map(t => t.name),
+        });
     }
 
     public async stop(): Promise<void> {

@@ -24,12 +24,14 @@ describe('AppLogger', () => {
 
             expect(mockConsoleError).toHaveBeenCalledTimes(1);
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry).toMatchObject({
                 level: 'ERROR',
                 message: 'User login failed',
-                data: testData,
+                data: JSON.stringify(testData),
             });
             expect(logEntry.timestamp).toBeDefined();
         });
@@ -40,12 +42,14 @@ describe('AppLogger', () => {
 
             expect(mockConsoleError).toHaveBeenCalledTimes(1);
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry).toMatchObject({
                 level: 'WARN',
                 message: 'API deprecation warning',
-                data: testData,
+                data: JSON.stringify(testData),
             });
         });
 
@@ -55,12 +59,14 @@ describe('AppLogger', () => {
 
             expect(mockConsoleError).toHaveBeenCalledTimes(1);
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry).toMatchObject({
                 level: 'INFO',
                 message: 'Application started',
-                data: testData,
+                data: JSON.stringify(testData),
             });
         });
 
@@ -70,12 +76,14 @@ describe('AppLogger', () => {
 
             expect(mockConsoleError).toHaveBeenCalledTimes(1);
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry).toMatchObject({
                 level: 'DEBUG',
                 message: 'Debug message',
-                data: testData,
+                data: JSON.stringify(testData),
             });
         });
 
@@ -84,7 +92,9 @@ describe('AppLogger', () => {
 
             expect(mockConsoleError).toHaveBeenCalledTimes(1);
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry).toMatchObject({
                 level: 'INFO',
@@ -111,7 +121,9 @@ describe('AppLogger', () => {
             logger.info('Test message');
 
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
         });
@@ -133,18 +145,25 @@ describe('AppLogger', () => {
             logger.error('Complex data test', complexData);
 
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry.data).toBeDefined();
-            expect(logEntry.data.nested).toBeDefined();
-            expect(logEntry.data.nested.array).toEqual([1, 2, 3]);
+            // Parse the stringified data to verify it contains the expected structure
+            const parsedData = JSON.parse(logEntry.data);
+            expect(parsedData.nested).toBeDefined();
+            expect(parsedData.nested.array).toEqual([1, 2, 3]);
+            expect(parsedData.circular).toBe('[Circular Reference]');
         });
 
         it('should handle undefined data gracefully', () => {
             logger.info('Message with undefined data', undefined as any);
 
             const logCall = mockConsoleError.mock.calls[0][0];
-            const logEntry = JSON.parse(logCall);
+            // Remove the %c styling code from the beginning
+            const jsonString = logCall.replace(/^%c/, '');
+            const logEntry = JSON.parse(jsonString);
 
             expect(logEntry.data).toBeUndefined();
         });

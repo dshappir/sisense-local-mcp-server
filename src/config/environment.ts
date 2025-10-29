@@ -5,7 +5,7 @@ import { z } from 'zod';
 config();
 
 // Define log levels array
-const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
+export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 
 // Create a Zod schema for LogLevel
 const logLevelSchema = z.enum(LOG_LEVELS);
@@ -30,10 +30,11 @@ const envSchema = z.object({
     // Development Settings
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     DEBUG: z.coerce.boolean().default(false),
+    NO_SCHEMA_ARRAYS: z.coerce.boolean().default(false),
 });
 
 // Parse and validate environment variables
-function parseEnvironment() {
+function parseEnvironment(): Environment {
     try {
         return envSchema.parse(process.env);
     } catch (error) {
@@ -48,9 +49,7 @@ function parseEnvironment() {
     }
 }
 
-export const env = parseEnvironment() as Environment & {
-    LOG_LEVEL: LogLevel;
-};
+export const env = parseEnvironment();
 
 // Type-safe environment configuration
 export type Environment = z.infer<typeof envSchema>;

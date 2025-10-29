@@ -1,36 +1,42 @@
 import { SisenseMCPServer } from '../../src/server/mcp-server';
-import { SisenseService } from '../../src/services/sisense';
+import { SwaggerClient, ToolGenerator } from '../../src/services';
 import { ValidationError } from '../../src/types/index.js';
 
-// Mock the SisenseService
-jest.mock('../../src/services/sisense');
-const MockedSisenseService = SisenseService as jest.MockedClass<typeof SisenseService>;
+// Mock the services
+jest.mock('../../src/services/swagger-client');
+jest.mock('../../src/services/tool-generator');
+
+const MockedSwaggerClient = SwaggerClient as jest.MockedClass<typeof SwaggerClient>;
+const MockedToolGenerator = ToolGenerator as jest.MockedClass<typeof ToolGenerator>;
 
 describe('SisenseMCPServer', () => {
     let server: SisenseMCPServer;
-    let mockSisenseService: jest.Mocked<SisenseService>;
+    let mockSwaggerClient: jest.Mocked<SwaggerClient>;
+    let mockToolGenerator: jest.Mocked<ToolGenerator>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         // Reset all mocks
         jest.clearAllMocks();
 
-        // Create mock instance
-        mockSisenseService = {
+        // Create mock instances
+        mockSwaggerClient = {
             isConfigured: jest.fn().mockReturnValue(true),
-            getServerInfo: jest.fn(),
-            getDataSources: jest.fn(),
-            getDashboards: jest.fn(),
-            getDashboard: jest.fn(),
-            getDashboardWidgets: jest.fn(),
-            executeQuery: jest.fn(),
-            getCubes: jest.fn(),
-            getCubeMetadata: jest.fn(),
+            makeRequest: jest.fn(),
+            makeApiRequest: jest.fn(),
         } as any;
 
-        // Mock the constructor
-        MockedSisenseService.mockImplementation(() => mockSisenseService);
+        mockToolGenerator = {
+            generateTools: jest.fn().mockResolvedValue([]),
+        } as any;
+
+        // Mock the constructors
+        MockedSwaggerClient.mockImplementation(() => mockSwaggerClient);
+        MockedToolGenerator.mockImplementation(() => mockToolGenerator);
 
         server = new SisenseMCPServer();
+
+        // Wait for dynamic tools initialization to complete
+        await new Promise(resolve => setTimeout(resolve, 50));
     });
 
     afterEach(() => {
@@ -38,142 +44,46 @@ describe('SisenseMCPServer', () => {
     });
 
     describe('tool execution', () => {
-        it('should execute get_server_info tool', async () => {
-            const mockServerInfo = { version: '1.0.0', status: 'ok' };
-            mockSisenseService.getServerInfo.mockResolvedValue(mockServerInfo);
+        it('should throw ValidationError for unknown tools when no dynamic tools are available', async () => {
+            // Mock empty tools array
+            mockToolGenerator.generateTools.mockResolvedValue([]);
 
-            const result = await server['callTool']('get_server_info', {});
-
-            expect(mockSisenseService.getServerInfo).toHaveBeenCalled();
-            expect(result).toEqual({
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify(mockServerInfo, null, 2),
-                    },
-                ],
-            });
-        });
-
-        it('should execute list_dashboards tool', async () => {
-            const mockDashboards = [
-                { oid: '1', title: 'Dashboard 1' },
-                { oid: '2', title: 'Dashboard 2' },
-            ];
-            mockSisenseService.getDashboards.mockResolvedValue(mockDashboards);
-
-            const result = await server['callTool']('list_dashboards', {});
-
-            expect(mockSisenseService.getDashboards).toHaveBeenCalled();
-            expect(result).toEqual({
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify(mockDashboards, null, 2),
-                    },
-                ],
-            });
-        });
-
-        it('should execute get_dashboard tool with valid arguments', async () => {
-            const mockDashboard = { oid: '123', title: 'Test Dashboard' };
-            mockSisenseService.getDashboard.mockResolvedValue(mockDashboard);
-
-            const result = await server['callTool']('get_dashboard', { dashboardId: '123' });
-
-            expect(mockSisenseService.getDashboard).toHaveBeenCalledWith('123');
-            expect(result).toEqual({
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify(mockDashboard, null, 2),
-                    },
-                ],
-            });
-        });
-
-        it('should throw ValidationError for get_dashboard tool with missing dashboardId', async () => {
-            await expect(server['callTool']('get_dashboard', {})).rejects.toThrow(ValidationError);
-        });
-
-        it('should execute execute_query tool with valid query', async () => {
-            const mockQuery = { query: 'SELECT * FROM table' };
-            const mockResult = { data: [], total: 0 };
-            mockSisenseService.executeQuery.mockResolvedValue(mockResult);
-
-            const result = await server['callTool']('execute_query', { query: mockQuery });
-
-            expect(mockSisenseService.executeQuery).toHaveBeenCalledWith(mockQuery);
-            expect(result).toEqual({
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify(mockResult, null, 2),
-                    },
-                ],
-            });
-        });
-
-        it('should throw ValidationError for execute_query tool with missing query', async () => {
-            await expect(server['callTool']('execute_query', {})).rejects.toThrow(ValidationError);
-        });
-
-        it('should throw ValidationError for unknown tool', async () => {
             await expect(server['callTool']('unknown_tool', {})).rejects.toThrow(ValidationError);
+        });
+
+        it('should execute dynamic tools when available', async () => {
+            const mockTool = {
+                name: 'test_tool',
+                description: 'Test tool',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        param: { type: 'string' },
+                    },
+                },
+            };
+
+            // Set up mocks for this specific test
+            mockToolGenerator.generateTools.mockResolvedValue([mockTool]);
+            mockSwaggerClient.makeApiRequest.mockResolvedValue({ result: 'success' });
+
+            // Create a new server instance with the mocked tools
+            const testServer = new SisenseMCPServer();
+
+            // Wait for dynamic tools initialization
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const result = await testServer['callTool']('test_tool', { param: 'value' });
+
+            expect(result).toBeDefined();
+            expect(result.content).toBeDefined();
         });
     });
 
     describe('resource handling', () => {
-        it('should get available resources when Sisense is configured', async () => {
-            const mockDashboards = [
-                { oid: '1', title: 'Dashboard 1' },
-                { oid: '2', title: 'Dashboard 2' },
-            ];
-            mockSisenseService.getDashboards.mockResolvedValue(mockDashboards);
-
+        it('should return empty resources (current implementation)', async () => {
             const resources = await server['getAvailableResources']();
-
-            expect(mockSisenseService.getDashboards).toHaveBeenCalled();
-            expect(resources).toEqual([
-                {
-                    uri: 'sisense://dashboard/1',
-                    name: 'Dashboard 1',
-                    description: undefined,
-                    mimeType: 'application/json',
-                },
-                {
-                    uri: 'sisense://dashboard/2',
-                    name: 'Dashboard 2',
-                    description: undefined,
-                    mimeType: 'application/json',
-                },
-            ]);
-        });
-
-        it('should return empty resources when Sisense is not configured', async () => {
-            mockSisenseService.isConfigured.mockReturnValue(false);
-
-            const resources = await server['getAvailableResources']();
-
             expect(resources).toEqual([]);
-        });
-
-        it('should read dashboard resource successfully', async () => {
-            const mockDashboard = { oid: '123', title: 'Test Dashboard' };
-            mockSisenseService.getDashboard.mockResolvedValue(mockDashboard);
-
-            const result = await server['readResource']('sisense://dashboard/123');
-
-            expect(mockSisenseService.getDashboard).toHaveBeenCalledWith('123');
-            expect(result).toEqual({
-                contents: [
-                    {
-                        uri: 'sisense://dashboard/123',
-                        mimeType: 'application/json',
-                        text: JSON.stringify(mockDashboard, null, 2),
-                    },
-                ],
-            });
         });
 
         it('should throw ValidationError for unsupported resource URI', async () => {
@@ -187,36 +97,75 @@ describe('SisenseMCPServer', () => {
                 ValidationError
             );
         });
+
+        it('should throw ValidationError for missing resource ID', async () => {
+            await expect(server['readResource']('sisense://dashboard/')).rejects.toThrow(
+                ValidationError
+            );
+        });
     });
 
     describe('tool definitions', () => {
-        it('should return correct tool definitions', () => {
-            const tools = server['getAvailableTools']();
-
-            expect(tools).toHaveLength(8);
-            expect(tools.map(t => t.name)).toEqual([
-                'get_server_info',
-                'list_data_sources',
-                'list_dashboards',
-                'get_dashboard',
-                'get_dashboard_widgets',
-                'execute_query',
-                'list_cubes',
-                'get_cube_metadata',
-            ]);
-
-            // Check that get_dashboard tool has required parameters
-            const getDashboardTool = tools.find(t => t.name === 'get_dashboard');
-            expect(getDashboardTool?.inputSchema).toEqual({
-                type: 'object',
-                properties: {
-                    dashboardId: {
-                        type: 'string',
-                        description: 'The ID of the dashboard to retrieve',
+        it('should return correct tool definitions', async () => {
+            const mockTools = [
+                {
+                    name: 'test_tool_1',
+                    description: 'Test tool 1',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            param1: { type: 'string' },
+                        },
                     },
                 },
-                required: ['dashboardId'],
-            });
+                {
+                    name: 'test_tool_2',
+                    description: 'Test tool 2',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            param2: { type: 'number' },
+                        },
+                    },
+                },
+            ];
+
+            // Set up mocks for this specific test
+            mockToolGenerator.generateTools.mockResolvedValue(mockTools);
+
+            // Create a new server instance with the mocked tools
+            const testServer = new SisenseMCPServer();
+
+            // Wait for dynamic tools initialization to complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const tools = testServer['getAvailableTools']();
+
+            expect(Array.isArray(tools)).toBe(true);
+            expect(tools).toEqual(mockTools);
+
+            // Check that tool structure is correct
+            if (tools.length > 0) {
+                const firstTool = tools[0];
+                expect(firstTool).toHaveProperty('name');
+                expect(firstTool).toHaveProperty('description');
+                expect(firstTool).toHaveProperty('inputSchema');
+            }
+        });
+
+        it('should return empty tools when SwaggerClient is not configured', async () => {
+            // Set up mocks for this specific test
+            mockSwaggerClient.isConfigured.mockReturnValue(false);
+            mockToolGenerator.generateTools.mockResolvedValue([]);
+
+            // Create a new server instance with the mocked configuration
+            const testServer = new SisenseMCPServer();
+
+            // Wait for dynamic tools initialization to complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const tools = testServer['getAvailableTools']();
+            expect(tools).toEqual([]);
         });
     });
 });
