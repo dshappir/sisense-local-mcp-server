@@ -106,8 +106,7 @@ REM Full path would be: C:\Users\username\sisense-local-mcp-server\dist\index.js
              ],
              "env": {
                  "SISENSE_URL": "<running Sisense instance URL>",
-                 "SISENSE_API_KEY": "<Sisense API key>",
-                 "NO_SCHEMA_ARRAYS": "true"
+                 "SISENSE_API_KEY": "<Sisense API key>"
              }
          }
     ```
@@ -301,7 +300,6 @@ The server exposes Sisense dashboards as MCP resources:
 | `SISENSE_API_KEY`        | API key for authentication | -                                | Yes      |
 | `NODE_ENV`               | Environment                | `development`                    | No       |
 | `DEBUG`                  | Debug mode                 | `false`                          | No       |
-| `NO_SCHEMA_ARRAYS`       | Array usage in API Schema  | `false`                          | No       |
 
 ## Project Structure
 

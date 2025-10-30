@@ -30,7 +30,6 @@ const envSchema = z.object({
     // Development Settings
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     DEBUG: z.coerce.boolean().default(false),
-    NO_SCHEMA_ARRAYS: z.coerce.boolean().default(false),
 });
 
 // Parse and validate environment variables

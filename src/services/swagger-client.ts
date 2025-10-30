@@ -132,9 +132,6 @@ export class SwaggerClient {
         return headers;
     }
 
-    /**
-     * Make an authenticated request to the Sisense API
-     */
     private async makeRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
         if (!this.isConfigured()) {
             throw new ConfigurationError('SwaggerClient is not properly configured', {
@@ -266,6 +263,10 @@ export class SwaggerClient {
     }
 
     public async makeApiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-        return this.makeRequest<T>(endpoint, options);
+        const data = await this.makeRequest<T>(endpoint, options);
+        if (Array.isArray(data)) {
+            return { content: data } as unknown as T;
+        }
+        return data;
     }
 }

@@ -1,4 +1,3 @@
-import { env } from '../config/environment.js';
 import type { ToolDefinition } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import type {
@@ -123,10 +122,11 @@ export class ToolGenerator {
             return null;
         }
 
-        const outputSchema = this.generateOutputSchema(operation, spec);
+        const description = this.generateDescription(operation, path, method);
+        const outputSchema = this.generateOutputSchema(operation, spec, description);
         return {
             name: this.generateToolName(operation.operationId, path, method),
-            description: this.generateDescription(operation, path, method),
+            description,
             inputSchema: this.generateInputSchema(operation, spec),
             ...(outputSchema ? { outputSchema } : {}),
             method: method.toUpperCase() as Method,
@@ -253,7 +253,11 @@ export class ToolGenerator {
     /**
      * Generate output schema for the tool
      */
-    private generateOutputSchema(operation: Operation, spec: SwaggerSpec): Schema | undefined {
+    private generateOutputSchema(
+        operation: Operation,
+        spec: SwaggerSpec,
+        description: string
+    ): Schema | undefined {
         // Look for success responses (2xx status codes)
         const successResponses = Object.keys(operation.responses)
             .filter(code => code.startsWith('2'))
@@ -265,7 +269,25 @@ export class ToolGenerator {
             return undefined;
         }
         const response = operation.responses[firstSuccessCode];
-        return this.convertSchemaToJsonSchema(response?.schema, spec);
+        const schema = this.convertSchemaToJsonSchema(response?.schema, spec);
+
+        if (!schema) {
+            return undefined;
+        }
+
+        if (schema.type !== 'array') {
+            return !/list|array/i.test(schema.description || description) ? schema : undefined;
+        }
+
+        return {
+            type: 'object',
+            properties: {
+                content: {
+                    type: 'array',
+                    items: schema,
+                },
+            },
+        };
     }
 
     private convertSchemaToJsonSchema(
@@ -289,9 +311,6 @@ export class ToolGenerator {
         };
 
         if (schema.type === 'array' && schema.items) {
-            if (env.NO_SCHEMA_ARRAYS) {
-                return undefined;
-            }
             const itemsSchema = this.convertSchemaToJsonSchema(schema.items, spec);
             if (!itemsSchema) {
                 return undefined;
