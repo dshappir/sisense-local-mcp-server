@@ -226,18 +226,19 @@ export class ToolGenerator {
      */
     private generateInputSchema(operation: Operation, spec: SwaggerSpec): Schema {
         const properties: Record<string, Schema> = {};
-        const required: string[] = [];
+        const requiredParams: string[] = [];
 
         // Process parameters
         for (const param of operation.parameters || []) {
             const resolvedParam = this.resolveParameter(param, spec);
-            if (resolvedParam) {
-                if (this.shouldExcludeParameter(resolvedParam.name)) {
-                    continue;
-                }
-                properties[resolvedParam.name] = resolvedParam as unknown as Schema; // !!!
-                if (resolvedParam.required) {
-                    required.push(resolvedParam.name);
+            if (resolvedParam && !this.shouldExcludeParameter(resolvedParam.name)) {
+                const { required, ...rest } = resolvedParam;
+                const schema = this.convertSchemaToJsonSchema(rest, spec);
+                if (schema) {
+                    properties[resolvedParam.name] = schema;
+                    if (required) {
+                        requiredParams.push(resolvedParam.name);
+                    }
                 }
             }
         }
@@ -245,7 +246,7 @@ export class ToolGenerator {
         return {
             type: 'object',
             properties,
-            ...(required.length > 0 && { required }),
+            ...(requiredParams.length > 0 && { required: requiredParams }),
         };
     }
 
@@ -264,35 +265,15 @@ export class ToolGenerator {
             return undefined;
         }
         const response = operation.responses[firstSuccessCode];
-
-        const schema = response?.schema;
-        if (!schema) {
-            return undefined;
-        }
-
-        // Handle reference object
-        if ('$ref' in schema) {
-            const resolvedSchema = this.resolveReference<Schema>(schema.$ref, spec);
-            if (resolvedSchema) {
-                const jsonSchema = this.convertSchemaToJsonSchema(resolvedSchema, spec);
-                if (jsonSchema) {
-                    return jsonSchema;
-                }
-            }
-            return undefined;
-        }
-
-        // Convert the schema to JSON schema format
-        const jsonSchema = this.convertSchemaToJsonSchema(schema, spec);
-        return jsonSchema || undefined;
+        return this.convertSchemaToJsonSchema(response?.schema, spec);
     }
 
     private convertSchemaToJsonSchema(
-        schema: Schema | ReferenceObject,
+        schema: Schema | ReferenceObject | undefined,
         spec: SwaggerSpec
-    ): Schema | null {
+    ): Schema | undefined {
         if (!schema) {
-            return null;
+            return undefined;
         }
 
         if ('$ref' in schema) {
@@ -300,7 +281,7 @@ export class ToolGenerator {
             if (refSchema) {
                 return this.convertSchemaToJsonSchema(refSchema as unknown as Schema, spec);
             }
-            return null;
+            return undefined;
         }
 
         const jsonSchema: Schema = {
@@ -309,11 +290,11 @@ export class ToolGenerator {
 
         if (schema.type === 'array' && schema.items) {
             if (env.NO_SCHEMA_ARRAYS) {
-                return null;
+                return undefined;
             }
             const itemsSchema = this.convertSchemaToJsonSchema(schema.items, spec);
             if (!itemsSchema) {
-                return null;
+                return undefined;
             }
             jsonSchema.items = itemsSchema;
         }
@@ -324,7 +305,7 @@ export class ToolGenerator {
             for (const [propName, propSchema] of Object.entries(properties)) {
                 const convertedProp = this.convertSchemaToJsonSchema(propSchema, spec);
                 if (!convertedProp) {
-                    return null;
+                    return undefined;
                 }
                 jsonSchema.properties[propName] = convertedProp;
             }
@@ -349,10 +330,11 @@ export class ToolGenerator {
             return this.resolveReference<Parameter>(param.$ref, spec);
         }
         if (param.schema) {
+            const { schema, ...rest } = param;
             return {
-                ...param,
-                ...('$ref' in param.schema
-                    ? this.resolveReference<Schema>(param.schema.$ref, spec)
+                ...rest,
+                ...('$ref' in schema
+                    ? this.resolveReference<Schema>(schema.$ref, spec)
                     : param.schema),
             } as Parameter;
         }

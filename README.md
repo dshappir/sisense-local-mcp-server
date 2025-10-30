@@ -8,7 +8,7 @@ A Model Context Protocol (MCP) server that provides access to Sisense data and a
 - 📊 **Sisense Integration** - Access to dashboards, data sources, and analytics
 - 🛠️ **Tool Support** - 8 built-in tools for Sisense operations
 - 📚 **Resource Access** - Browse and read Sisense dashboards as resources
-- 🔐 **Authentication** - Support for both API tokens and username/password
+- 🔐 **Authentication** - Support for Sisense API tokens
 - 🧪 **Comprehensive Testing** - Full test coverage with Jest
 - 📝 **TypeScript** - Fully typed with modern TypeScript features
 - 🎨 **Code Quality** - ESLint, Prettier, and modern development tools
@@ -17,14 +17,14 @@ A Model Context Protocol (MCP) server that provides access to Sisense data and a
 
 - Node.js >= 22.0.0
 - npm >= 10.0.0
-- Access to a Sisense instance
+- Access to a Sisense instance + SDK API
 
 ## Installation
 
 1. **Clone the repository:**
 
     ```bash
-    git clone <repository-url>
+    git clone git@github.com:dshappir/sisense-local-mcp-server.git
     cd sisense-local-mcp-server
     ```
 
@@ -47,9 +47,111 @@ A Model Context Protocol (MCP) server that provides access to Sisense data and a
     SISENSE_URL=https://your-sisense-instance.com
     SISENSE_API_KEY=your-api-key
 
-    # Server Settings
-    LOG_LEVEL=info
+    # Server & Debug Settings
+    ...
     ```
+
+4. **Build the project:**
+
+    ```bash
+    npm run build
+    ```
+
+## Configuring Cursor
+
+To use this MCP server with Cursor IDE, follow these steps:
+
+### Step 1: Build the Project
+
+Ensure the project is built before configuring Cursor (see above).
+This creates the `dist/` directory with the compiled JavaScript files.
+
+### Step 2: Get the Absolute Path
+
+You'll need the absolute path to the built server file (`dist/index.js`). You can get this by:
+
+**On macOS/Linux:**
+
+```bash
+pwd  # Shows current directory
+# Example output: /Users/username/sisense-local-mcp-server
+# Full path would be: /Users/username/sisense-local-mcp-server/dist/index.js
+```
+
+**On Windows:**
+
+```cmd
+cd
+REM Example output: C:\Users\username\sisense-local-mcp-server
+REM Full path would be: C:\Users\username\sisense-local-mcp-server\dist\index.js
+```
+
+### Step 3: Configure in Cursor Settings
+
+1. **Open Cursor Settings:**
+    - Press `Cmd + Shift + P` (Mac) or `Ctrl + Shift + P,` (Windows/Linux) to open Command Palette
+    - Select `View: Open MCP Settings`
+
+2. **Add a New MCP Server:**
+    - Click the `+ Add New MCP Server` button
+
+3. **Configure the Server:**
+   In the `mcp.json` file that opens for editing, add the following JSON fragment, updating the `args` path accordingly:
+
+    ```JSON
+         "sisense": {
+             "command": "node",
+             "args": [
+                 "${userHome}/sisense-local-mcp-server/dist/index.js"
+             ],
+             "env": {
+                 "SISENSE_URL": "<running Sisense instance URL>",
+                 "SISENSE_API_KEY": "<Sisense API key>",
+                 "NO_SCHEMA_ARRAYS": "true"
+             }
+         }
+    ```
+
+    Close the the tab (saving the file).
+
+4. **Manage the MCP server:**
+    - In the `Installed MCP servers` section you should see a new entry with the name `sisense`
+    - It should have a green dot next to it, indicating that it is running. If not, try to disable/enable it, and restart Cursor
+    - It should show that it has tools enabled
+
+### Step 4: Verify the Configuration
+
+- Try asking Cursor to use one of the Sisense tools, for example:
+    - "List all sisense data models"
+    - "Get information about the sisense server"
+
+### Troubleshooting Cursor Configuration
+
+If the server doesn't start or tools aren't available:
+
+1. **Check Build Status:**
+    - Ensure you've run `npm run build` successfully
+    - The `dist/` directory should exist and contain compiled files
+
+2. **Check the Path:**
+    - Ensure the absolute path to `dist/index.js` is correct
+    - Verify the file exists: `ls dist/index.js` (Mac/Linux) or `dir dist\index.js` (Windows)
+
+3. **Check Sisense settings:**
+    - Verify Sisense instance exists and is working at the URL specified
+    - Make sure API key is correct and up-to-date
+
+4. **Check Cursor Logs:**
+    - Open Cursor's developer console for error messages
+    - Look for MCP server connection errors
+
+5. **Manual Test:**
+    - Try running the server manually to ensure it works:
+        ```bash
+        echo '{"jsonrpc":"2.0", "id":1, "method":"tools/list", "params":{}}' | node dist/index.js
+        ```
+    - The server should start without errors (it will wait for input on stdin)
+    - Show output a JSON of the available tools, including input/output configuration
 
 ## Usage
 
@@ -199,6 +301,7 @@ The server exposes Sisense dashboards as MCP resources:
 | `SISENSE_API_KEY`        | API key for authentication | -                                | Yes      |
 | `NODE_ENV`               | Environment                | `development`                    | No       |
 | `DEBUG`                  | Debug mode                 | `false`                          | No       |
+| `NO_SCHEMA_ARRAYS`       | Array usage in API Schema  | `false`                          | No       |
 
 ## Project Structure
 

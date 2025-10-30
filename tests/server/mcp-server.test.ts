@@ -1,10 +1,13 @@
 import { SisenseMCPServer } from '../../src/server/mcp-server';
 import { SwaggerClient, ToolGenerator } from '../../src/services';
+import type { ToolDefinition } from '../../src/types';
 import { ValidationError } from '../../src/types/index.js';
 
-// Mock the services
-jest.mock('../../src/services/swagger-client');
-jest.mock('../../src/services/tool-generator');
+// Mock the services via the barrel to match import usage in code under test
+jest.mock('../../src/services', () => ({
+    SwaggerClient: jest.fn(),
+    ToolGenerator: jest.fn(),
+}));
 
 const MockedSwaggerClient = SwaggerClient as jest.MockedClass<typeof SwaggerClient>;
 const MockedToolGenerator = ToolGenerator as jest.MockedClass<typeof ToolGenerator>;
@@ -52,7 +55,7 @@ describe('SisenseMCPServer', () => {
         });
 
         it('should execute dynamic tools when available', async () => {
-            const mockTool = {
+            const mockTool: ToolDefinition = {
                 name: 'test_tool',
                 description: 'Test tool',
                 inputSchema: {
@@ -61,6 +64,8 @@ describe('SisenseMCPServer', () => {
                         param: { type: 'string' },
                     },
                 },
+                method: 'GET',
+                path: '/test',
             };
 
             // Set up mocks for this specific test
@@ -107,7 +112,7 @@ describe('SisenseMCPServer', () => {
 
     describe('tool definitions', () => {
         it('should return correct tool definitions', async () => {
-            const mockTools = [
+            const mockTools: ToolDefinition[] = [
                 {
                     name: 'test_tool_1',
                     description: 'Test tool 1',
@@ -117,6 +122,8 @@ describe('SisenseMCPServer', () => {
                             param1: { type: 'string' },
                         },
                     },
+                    method: 'GET',
+                    path: '/test/tool1',
                 },
                 {
                     name: 'test_tool_2',
@@ -127,6 +134,8 @@ describe('SisenseMCPServer', () => {
                             param2: { type: 'number' },
                         },
                     },
+                    method: 'POST',
+                    path: '/test/tool2',
                 },
             ];
 
@@ -139,7 +148,7 @@ describe('SisenseMCPServer', () => {
             // Wait for dynamic tools initialization to complete
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            const tools = testServer['getAvailableTools']();
+            const tools = await testServer['dynamicTools'];
 
             expect(Array.isArray(tools)).toBe(true);
             expect(tools).toEqual(mockTools);
@@ -164,7 +173,7 @@ describe('SisenseMCPServer', () => {
             // Wait for dynamic tools initialization to complete
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            const tools = testServer['getAvailableTools']();
+            const tools = await testServer['dynamicTools'];
             expect(tools).toEqual([]);
         });
     });
