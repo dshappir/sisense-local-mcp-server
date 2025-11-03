@@ -7,7 +7,7 @@ import {
     ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { env } from '../config/environment.js';
-import { SwaggerClient, ToolGenerator } from '../services/index.js';
+import { SwaggerClient, ToolGenerator, type Method } from '../services/index.js';
 import type { ResourceDefinition, ToolDefinition } from '../types/index.js';
 import { ValidationError } from '../types/index.js';
 import { safeStringify } from '../utils/json.js';
@@ -23,10 +23,14 @@ export class SisenseMCPServer {
 
     constructor() {
         this.swaggerClient = new SwaggerClient({
-            url: env.SISENSE_URL || 'http://10.220.73.124:30845/',
+            url: env.SISENSE_URL || '',
             apiKey: env.SISENSE_API_KEY || '',
         });
-        this.toolGenerator = new ToolGenerator(this.swaggerClient);
+        // TODO: include output schema once Sisense APIs are fixed
+        this.toolGenerator = new ToolGenerator(this.swaggerClient, {
+            excludeOutputSchema: true,
+            shouldExcludeOperation,
+        });
 
         this.server = new Server(
             {
@@ -286,4 +290,24 @@ export class SisenseMCPServer {
         await this.server.close();
         logger.info('Sisense MCP Server stopped');
     }
+}
+
+function shouldExcludeOperation(path: string, method: Method): boolean {
+    switch (method) {
+        case 'GET':
+            if (
+                path.startsWith('/ai') ||
+                path.startsWith('/nlq') ||
+                path.startsWith('/settings') ||
+                /validate/.test(path)
+            ) {
+                return true;
+            }
+            return false;
+        case 'POST':
+            if (path === '/builds') {
+                return false;
+            }
+    }
+    return true;
 }

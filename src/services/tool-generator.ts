@@ -13,7 +13,7 @@ import type {
 const SWAGGER_SPEC_ENDPOINT = '/swagger/api/docs/spec/v2';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'] as const;
-type Method = (typeof METHODS)[number];
+export type Method = (typeof METHODS)[number];
 const METHOD_LABELS = METHODS.map(method => method.toLowerCase()) as MethodType[];
 
 const METHOD_PREFIXES = {
@@ -28,17 +28,20 @@ const METHOD_PREFIXES = {
 
 const EXCLUDED_PARAMETERS = ['authorization', 'x-device-id'];
 
+export interface ToolGeneratorOptions {
+    shouldExcludeOperation?: (path: string, method: Method) => boolean;
+    excludeOutputSchema?: boolean;
+}
+
 export class ToolGenerator {
     private readonly swaggerClient: SwaggerClient;
-    private readonly includedCategories: string[];
     private readonly toolNames = new Set<string>();
 
     constructor(
-        swaggerClient: import('./swagger-client.js').SwaggerClient,
-        includedCategories: string[] = ['/ai/', '/builds', '/datamodels/', '/perspectives']
+        swaggerClient: SwaggerClient,
+        private readonly options: ToolGeneratorOptions = { excludeOutputSchema: false }
     ) {
         this.swaggerClient = swaggerClient;
-        this.includedCategories = includedCategories;
     }
 
     /**
@@ -65,6 +68,8 @@ export class ToolGenerator {
                     continue;
                 }
 
+                const { parameters = [] } = pathItem;
+
                 for (const method of METHOD_LABELS) {
                     const operation = pathItem[method];
                     if (!operation) {
@@ -75,7 +80,8 @@ export class ToolGenerator {
                         path,
                         method.toUpperCase() as Method,
                         operation,
-                        swaggerSpec
+                        swaggerSpec,
+                        parameters
                     );
 
                     if (!tool) {
@@ -87,7 +93,6 @@ export class ToolGenerator {
 
             logger.info('Successfully generated MCP tools', {
                 toolCount: tools.length,
-                includedCategories: this.includedCategories,
             });
 
             return tools;
@@ -106,15 +111,15 @@ export class ToolGenerator {
         path: string,
         method: Method,
         operation: Operation,
-        spec: SwaggerSpec
+        spec: SwaggerSpec,
+        parameters: Parameter[]
     ): ToolDefinition | null {
         // Skip operations with deprecated flag
         if (operation.deprecated) {
             return null;
         }
 
-        // Skip APIs not in included categories
-        if (!this.shouldIncludeOperation(path)) {
+        if (this.options.shouldExcludeOperation?.(path, method)) {
             logger.debug('Skipping operation not in included categories', {
                 path,
                 method,
@@ -122,38 +127,15 @@ export class ToolGenerator {
             return null;
         }
 
-        const description = this.generateDescription(operation, path, method);
-        const outputSchema = this.generateOutputSchema(operation, spec, description);
+        const outputSchema = this.generateOutputSchema(operation, spec);
         return {
             name: this.generateToolName(operation.operationId, path, method),
-            description,
-            inputSchema: this.generateInputSchema(operation, spec),
+            description: this.generateDescription(operation, path, method),
+            inputSchema: this.generateInputSchema(operation, parameters, spec),
             ...(outputSchema ? { outputSchema } : {}),
             method: method.toUpperCase() as Method,
             path: `${spec.basePath}${path}`,
         };
-    }
-
-    /**
-     * Check if an operation should be included based on included categories
-     */
-    private shouldIncludeOperation(path: string): boolean {
-        // If no categories are specified, include all
-        if (this.includedCategories.length === 0) {
-            return true;
-        }
-
-        // Normalize path to lowercase for comparison
-        const pathLower = path.toLowerCase();
-
-        // Check if path starts with any included category
-        for (const category of this.includedCategories) {
-            if (pathLower.startsWith(category.toLowerCase())) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -224,12 +206,17 @@ export class ToolGenerator {
     /**
      * Generate input schema for the tool
      */
-    private generateInputSchema(operation: Operation, spec: SwaggerSpec): Schema {
+    private generateInputSchema(
+        operation: Operation,
+        parameters: Parameter[],
+        spec: SwaggerSpec
+    ): Schema {
         const properties: Record<string, Schema> = {};
         const requiredParams: string[] = [];
 
-        // Process parameters
-        for (const param of operation.parameters || []) {
+        const params = [...(operation.parameters || []), ...parameters];
+
+        for (const param of params) {
             const resolvedParam = this.resolveParameter(param, spec);
             if (resolvedParam && !this.shouldExcludeParameter(resolvedParam.name)) {
                 const { required, ...rest } = resolvedParam;
@@ -253,11 +240,11 @@ export class ToolGenerator {
     /**
      * Generate output schema for the tool
      */
-    private generateOutputSchema(
-        operation: Operation,
-        spec: SwaggerSpec,
-        description: string
-    ): Schema | undefined {
+    private generateOutputSchema(operation: Operation, spec: SwaggerSpec): Schema | undefined {
+        if (this.options.excludeOutputSchema) {
+            return undefined;
+        }
+
         // Look for success responses (2xx status codes)
         const successResponses = Object.keys(operation.responses)
             .filter(code => code.startsWith('2'))
@@ -276,7 +263,7 @@ export class ToolGenerator {
         }
 
         if (schema.type !== 'array') {
-            return !/list|array/i.test(schema.description || description) ? schema : undefined;
+            return schema;
         }
 
         return {
@@ -284,7 +271,7 @@ export class ToolGenerator {
             properties: {
                 content: {
                     type: 'array',
-                    items: schema,
+                    items: schema.items || schema,
                 },
             },
         };
@@ -306,9 +293,13 @@ export class ToolGenerator {
             return undefined;
         }
 
-        const jsonSchema: Schema = {
-            ...schema,
-        };
+        if (hasOneOfProperties(schema, ['oneOf', 'allOf', 'anyOf', 'not'])) {
+            // TODO: handle complex schemas
+            return undefined;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { title, ...jsonSchema } = schema;
 
         if (schema.type === 'array' && schema.items) {
             const itemsSchema = this.convertSchemaToJsonSchema(schema.items, spec);
@@ -388,4 +379,8 @@ export class ToolGenerator {
     private shouldExcludeParameter(name: string): boolean {
         return EXCLUDED_PARAMETERS.some(excluded => excluded.toLowerCase() === name.toLowerCase());
     }
+}
+
+function hasOneOfProperties(schema: Schema, properties: string[]): boolean {
+    return properties.some(property => Object.prototype.hasOwnProperty.call(schema, property));
 }

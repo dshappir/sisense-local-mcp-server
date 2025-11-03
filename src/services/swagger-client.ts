@@ -89,6 +89,7 @@ export interface Response {
 }
 
 export interface Schema {
+    title?: string;
     type?: string;
     format?: string;
     description?: string;
@@ -100,20 +101,15 @@ export interface Schema {
 }
 
 export class SwaggerClient {
-    private readonly config: SisenseConfig;
-    private readonly baseUrl: string;
     private swaggerSpec: SwaggerSpec | null = null;
 
-    constructor(config: SisenseConfig) {
-        this.config = config;
-        this.baseUrl = config.url;
-    }
+    constructor(private readonly config: SisenseConfig) {}
 
     /**
      * Check if the client is properly configured
      */
     public isConfigured(): boolean {
-        return Boolean(this.baseUrl && this.config.apiKey);
+        return Boolean(this.config.url && this.config.apiKey);
     }
 
     /**
@@ -140,7 +136,7 @@ export class SwaggerClient {
             });
         }
 
-        const url = `${this.baseUrl.replace(/\/$/, '')}${endpoint}`;
+        const url = `${this.config.url.replace(/\/$/, '')}${endpoint}`;
         const headers = {
             ...this.getAuthHeaders(),
             ...options.headers,
